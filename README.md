@@ -15,9 +15,8 @@ A lightweight, real-time Linux server monitoring dashboard with integrated disk 
 
 ## Screenshots
 
-<img width="1615" height="1024" alt="Screenshot 2026-05-18 171934" src="https://github.com/user-attachments/assets/a78b5d4c-737a-47d5-bd3c-56b1afb8a40d" />
-
-<img width="795" height="479" alt="Screenshot 2026-05-18 170329" src="https://github.com/user-attachments/assets/d6518ddd-4fbe-4aa5-951c-7de52f6d28d2" />
+<img width="1181" height="819" alt="Screenshot 2026-05-19 014518" src="https://github.com/user-attachments/assets/3ee8df11-ac9a-42ee-8bd9-b7460ef5bfba" />
+<img width="1171" height="931" alt="Screenshot 2026-05-19 014534" src="https://github.com/user-attachments/assets/f712c341-2444-46a6-949f-93edac867253" />
 
 Access the dashboard at `http://your-server-ip:5000` after starting the server.
 
