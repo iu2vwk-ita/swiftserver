@@ -1,6 +1,6 @@
 # SwiftServer
 
-A lightweight, real-time Linux server monitoring dashboard with integrated disk cleanup utilities—perfect for purging heavy AI-generated temporary files and cache. Built with Flask and vanilla JavaScript for zero-dependency deployment on remote or headless machines.
+A lightweight, real-time Linux server monitoring dashboard with integrated disk cleanup utilities perfect for purging heavy AI generated temporary files and cache. Built with Flask and vanilla JavaScript for zero dependency deployment on remote or headless machines.
 
 ## Features
 
