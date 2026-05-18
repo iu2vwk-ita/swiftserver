@@ -275,35 +275,56 @@
             font-size: 18px;
             color: var(--text-secondary);
         }
-        @media (max-width: 900px) {
-            .dashboard { padding: 16px; }
+        @media (max-width: 768px) {
+            .dashboard { padding: 12px; }
             .header { flex-direction: column; gap: 12px; }
-            .header h1 { font-size: 22px; }
-            .charts-grid { grid-template-columns: 1fr; gap: 16px; }
-            .charts-row { grid-template-columns: 1fr; gap: 16px; }
+            .header h1 { font-size: 20px; }
+            .charts-grid { grid-template-columns: 1fr; gap: 14px; margin-bottom: 20px; }
+            .charts-row { grid-template-columns: 1fr; gap: 14px; margin-bottom: 20px; }
             .chart-container { height: 140px; }
+            .chart-card { padding: 18px; }
+            .chart-card h3 { font-size: 13px; margin-bottom: 10px; }
             .stat-value { font-size: 24px; }
-            .stat-card { padding: 16px; }
-            .stats-bar { gap: 12px; }
-            .file-toolbar { gap: 6px; }
-            .file-toolbar input { min-width: 120px; }
-        }
-        @media (max-width: 480px) {
-            .dashboard { padding: 10px; }
-            .header h1 { font-size: 18px; }
-            .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-            .chart-container { height: 120px; }
-            .stat-value { font-size: 20px; }
             .stat-label { font-size: 10px; }
-            .stat-card { padding: 12px; }
-            .chart-card { padding: 16px; }
-            .chart-card h3 { font-size: 12px; margin-bottom: 10px; }
-            .info-section { padding: 16px; }
-            .file-toolbar input { min-width: 100px; font-size: 11px; }
-            .file-toolbar button { font-size: 11px; padding: 4px 8px; }
+            .stat-card { padding: 14px; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .info-section { padding: 18px; margin-bottom: 16px; }
+            .info-section h3 { font-size: 14px; margin-bottom: 10px; }
+            .disk-grid { grid-template-columns: 1fr; gap: 10px; }
+            .temps-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .cleanup-grid { grid-template-columns: 1fr; gap: 8px; }
+            .processes-table { display: block; overflow-x: auto; white-space: nowrap; }
+            .processes-table th, .processes-table td { padding: 8px 10px; font-size: 11px; }
+            .file-toolbar { gap: 4px; }
+            .file-toolbar input { min-width: 80px; font-size: 12px; flex: 2; }
+            .file-toolbar button { font-size: 11px; padding: 5px 8px; }
+            .file-list { max-height: 300px; }
             .file-item { font-size: 12px; padding: 6px 8px; gap: 6px; }
-            .file-item .size, .file-item .date { font-size: 10px; min-width: 50px; }
-            .footer { font-size: 11px; }
+            .file-item .size, .file-item .date { font-size: 10px; min-width: 45px; }
+            .file-manager { padding: 14px; }
+            .cleanup-panel { padding: 14px; }
+            .footer { font-size: 11px; padding: 14px 0 6px; }
+            .header-info { gap: 12px; flex-wrap: wrap; }
+        }
+        @media (max-width: 400px) {
+            .dashboard { padding: 8px; }
+            .header h1 { font-size: 17px; }
+            .stats-bar { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .stat-value { font-size: 18px; }
+            .stat-card { padding: 10px; border-radius: 8px; }
+            .stat-label { font-size: 9px; letter-spacing: 0; }
+            .stat-detail { font-size: 10px; }
+            .chart-container { height: 110px; }
+            .chart-card { padding: 12px; border-radius: 8px; }
+            .chart-card h3 { font-size: 11px; }
+            .info-section { padding: 12px; border-radius: 8px; }
+            .temps-grid { grid-template-columns: 1fr; }
+            .file-toolbar input { min-width: 60px; font-size: 11px; padding: 4px 6px; }
+            .file-toolbar button { font-size: 10px; padding: 4px 6px; }
+            .file-item { font-size: 11px; padding: 5px 6px; gap: 4px; }
+            .file-item .size, .file-item .date { display: none; }
+            .file-manager { padding: 10px; }
+            .cleanup-panel { padding: 10px; }
         }
 
         /* ── Cleanup UI ── */
