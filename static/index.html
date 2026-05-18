@@ -275,13 +275,35 @@
             font-size: 18px;
             color: var(--text-secondary);
         }
-        @media (max-width: 1024px) {
-            .charts-grid { grid-template-columns: 1fr; }
-            .charts-row { grid-template-columns: 1fr; }
+        @media (max-width: 900px) {
+            .dashboard { padding: 16px; }
+            .header { flex-direction: column; gap: 12px; }
+            .header h1 { font-size: 22px; }
+            .charts-grid { grid-template-columns: 1fr; gap: 16px; }
+            .charts-row { grid-template-columns: 1fr; gap: 16px; }
+            .chart-container { height: 140px; }
+            .stat-value { font-size: 24px; }
+            .stat-card { padding: 16px; }
+            .stats-bar { gap: 12px; }
+            .file-toolbar { gap: 6px; }
+            .file-toolbar input { min-width: 120px; }
         }
-        @media (max-width: 768px) {
-            .stats-bar { grid-template-columns: repeat(2, 1fr); }
-            .header { flex-direction: column; gap: 16px; }
+        @media (max-width: 480px) {
+            .dashboard { padding: 10px; }
+            .header h1 { font-size: 18px; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .chart-container { height: 120px; }
+            .stat-value { font-size: 20px; }
+            .stat-label { font-size: 10px; }
+            .stat-card { padding: 12px; }
+            .chart-card { padding: 16px; }
+            .chart-card h3 { font-size: 12px; margin-bottom: 10px; }
+            .info-section { padding: 16px; }
+            .file-toolbar input { min-width: 100px; font-size: 11px; }
+            .file-toolbar button { font-size: 11px; padding: 4px 8px; }
+            .file-item { font-size: 12px; padding: 6px 8px; gap: 6px; }
+            .file-item .size, .file-item .date { font-size: 10px; min-width: 50px; }
+            .footer { font-size: 11px; }
         }
 
         /* ── Cleanup UI ── */
