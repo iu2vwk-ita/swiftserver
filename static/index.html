@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a1f2e;
+            --bg-card: #232a3b;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.3);
+            --text-primary: #e4e8f1;
+            --text-secondary: #8899a8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --border: rgba(255,255,255,0.08);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .dashboard {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--accent), #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header-info {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+        .server-name {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        .uptime-badge {
+            background: var(--bg-card);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .stat-card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 20px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent), transparent);
+        }
+        .stat-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+        .stat-detail {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        .stat-detail.warning { color: var(--warning); }
+        .stat-detail.danger { color: var(--danger); }
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .chart-card h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-secondary);
+        }
+        .chart-container {
+            position: relative;
+            height: 160px;
+        }
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+        .info-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .info-section h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+        .disk-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+        .disk-item {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .disk-name {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--text-primary);
+        }
+        .disk-mount {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+        .disk-bar {
+            height: 8px;
+            background: var(--bg-primary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .disk-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        .disk-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .network-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 16px;
+        }
+        .network-item {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .network-name {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+        .network-ip {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        .temps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 12px;
+        }
+        .temp-item {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+        .temp-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        .temp-value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .temp-value.ok { color: var(--success); }
+        .temp-value.warn { color: var(--warning); }
+        .temp-value.hot { color: var(--danger); }
+        .processes-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .processes-table th, .processes-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        .processes-table th {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+        }
+        .processes-table tr:hover { background: var(--bg-secondary); }
+        .processes-table td { font-size: 13px; font-variant-numeric: tabular-nums; }
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-size: 18px;
+            color: var(--text-secondary);
+        }
+        @media (max-width: 1024px) {
+            .charts-grid { grid-template-columns: 1fr; }
+            .charts-row { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .stats-bar { grid-template-columns: repeat(2, 1fr); }
+            .header { flex-direction: column; gap: 16px; }
+        }
+
+        /* ── Cleanup UI ── */
+        .cleanup-section { display: none; }
+        .cleanup-section.active { display: block; }
+        .cleanup-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .cleanup-btn:hover {
+            border-color: var(--accent);
+            background: var(--bg-secondary);
+        }
+        .cleanup-btn.running {
+            border-color: var(--warning);
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        .cleanup-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .cleanup-panel h3 {
+            font-size: 16px;
+            margin-bottom: 16px;
+        }
+        .cleanup-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .cleanup-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-secondary);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: border 0.2s;
+        }
+        .cleanup-item:hover { border-color: var(--accent); }
+        .cleanup-item input { accent-color: var(--accent); }
+        .cleanup-item .desc { color: var(--text-secondary); font-size: 11px; }
+        .cleanup-run {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .cleanup-run:hover { opacity: 0.9; }
+        .cleanup-run:disabled { opacity: 0.5; cursor: not-allowed; }
+        .cleanup-result {
+            margin-top: 12px;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+        }
+        .cleanup-result.success { display: block; border-left: 3px solid var(--success); }
+        .cleanup-result.error { display: block; border-left: 3px solid var(--danger); }
+        .disk-alert {
+            background: var(--danger);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            display: none;
+        }
+        .disk-alert.active { display: block; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="loading">Loading Server Monitor...</div>
+    </div>
+    <script>
+        const CONFIG = {
+            host: window.location.hostname || 'localhost',
+            port: window.location.port || 5000,
+            interval: 2000
+        };
+        const API = `http://${CONFIG.host}:${CONFIG.port}/api`;
+        const HISTORY = { cpu: [], ram: [], net: [] };
+        const MAX_HISTORY = 60;
+        let cpuChart, ramChart, netChart;
+
+        let prevNet = { bytes_sent: 0, bytes_recv: 0, ts: 0 };
+
+        async function fetchJSON(url) {
+            try {
+                const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            } catch (e) {
+                console.error(url, e);
+                return null;
+            }
+        }
+
+        function fmt(n, d) {
+            d = d || 1;
+            return n != null ? Number(n).toFixed(d) : '-';
+        }
+
+        function fmtBytes(bytes) {
+            if (bytes >= 1099511627776) return (bytes / 1099511627776).toFixed(1) + ' TB';
+            if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(1) + ' GB';
+            if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+            if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return bytes + ' B';
+        }
+
+        function netRate(bytes) {
+            if (bytes >= 1048576) return fmt(bytes / 1048576, 1) + ' MB/s';
+            if (bytes >= 1024) return fmt(bytes / 1024, 1) + ' KB/s';
+            return fmt(bytes, 1) + ' B/s';
+        }
+
+        async function loadAll() {
+            const [sys, metrics] = await Promise.all([
+                fetchJSON(`${API}/system`),
+                fetchJSON(`${API}/metrics`)
+            ]);
+            if (!sys || !metrics) {
+                document.getElementById('app').innerHTML = '<div class="loading">Connection failed. Retrying...</div>';
+                return;
+            }
+            prevNet = { bytes_sent: metrics.network.bytes_sent, bytes_recv: metrics.network.bytes_recv, ts: Date.now() };
+            updateHistory(metrics, true);
+            renderDashboard(sys, metrics);
+            initCharts();
+        }
+
+        function updateHistory(m, init) {
+            const now = Date.now();
+            HISTORY.cpu.push({ x: now, y: m.cpu });
+            HISTORY.ram.push({ x: now, y: m.ram ? m.ram.percent : 0 });
+
+            var netTotal;
+            if (init || !prevNet.ts) {
+                netTotal = 0;
+            } else {
+                var elapsed = (now - prevNet.ts) / 1000;
+                if (elapsed > 0) {
+                    var rxDelta = m.network.bytes_recv - prevNet.bytes_recv;
+                    var txDelta = m.network.bytes_sent - prevNet.bytes_sent;
+                    netTotal = (rxDelta + txDelta) / elapsed;
+                } else {
+                    netTotal = 0;
+                }
+            }
+            prevNet = { bytes_sent: m.network.bytes_sent, bytes_recv: m.network.bytes_recv, ts: now };
+            HISTORY.net.push({ x: now, y: netTotal / 1024 });
+
+            [HISTORY.cpu, HISTORY.ram, HISTORY.net].forEach(function(h) {
+                while (h.length > MAX_HISTORY) h.shift();
+            });
+        }
+
+        function initCharts() {
+            var opts = {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                scales: {
+                    x: { type: 'linear', display: false },
+                    y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8899a8', font: { size: 10 } } }
+                },
+                plugins: { legend: { display: false } }
+            };
+
+            cpuChart = new Chart(document.getElementById('cpuChart'), {
+                type: 'line',
+                data: { datasets: [{ borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.4, pointRadius: 0, data: [] }] },
+                options: Object.assign({}, opts, { scales: Object.assign({}, opts.scales, { y: Object.assign({}, opts.scales.y, { max: 100, title: { display: true, text: '%', color: '#8899a8' } }) }) })
+            });
+
+            ramChart = new Chart(document.getElementById('ramChart'), {
+                type: 'line',
+                data: { datasets: [{ borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4, pointRadius: 0, data: [] }] },
+                options: Object.assign({}, opts, { scales: Object.assign({}, opts.scales, { y: Object.assign({}, opts.scales.y, { max: 100, title: { display: true, text: '%', color: '#8899a8' } }) }) })
+            });
+
+            netChart = new Chart(document.getElementById('netChart'), {
+                type: 'line',
+                data: { datasets: [{ borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.4, pointRadius: 0, data: [] }] },
+                options: Object.assign({}, opts, { scales: Object.assign({}, opts.scales, { y: Object.assign({}, opts.scales.y, { min: 0, title: { display: true, text: 'KB/s', color: '#8899a8' } }) }) })
+            });
+        }
+
+        function updateCharts() {
+            cpuChart.data.datasets[0].data = HISTORY.cpu;
+            cpuChart.update('none');
+            ramChart.data.datasets[0].data = HISTORY.ram;
+            ramChart.update('none');
+            netChart.data.datasets[0].data = HISTORY.net;
+            netChart.update('none');
+        }
+
+        function renderDashboard(sys, m) {
+            function diskColor(p) { return p > 90 ? 'var(--danger)' : p > 75 ? 'var(--warning)' : 'var(--accent)'; }
+            function tempClass(t) { return t < 60 ? 'ok' : t < 80 ? 'warn' : 'hot'; }
+
+            var uptimeStr = sys.uptime.days + 'd ' + sys.uptime.hours + 'h ' + sys.uptime.minutes + 'm';
+            var cpuCores = m.cpu_cores ? m.cpu_cores.length : sys.cpu_count;
+            var loadStr = m.load ? fmt(m.load['1min'], 1) + ' / ' + fmt(m.load['5min'], 1) + ' / ' + fmt(m.load['15min'], 1) : '-';
+            var totalDiskUsed = 0, totalDiskSize = 0;
+            (m.disk || []).forEach(function(d) { totalDiskUsed += d.used; totalDiskSize += d.total; });
+            var totalDiskPct = totalDiskSize > 0 ? (totalDiskUsed / totalDiskSize * 100) : 0;
+            var netLastPoint = HISTORY.net.length > 0 ? HISTORY.net[HISTORY.net.length - 1].y : 0;
+
+            var html = '<div class="dashboard">' +
+                '<div class="header">' +
+                    '<div><h1>ByteSweep</h1>' +
+                    '<span class="disk-alert" id="disk-alert">&#9888; Disk above 90% &mdash; run cleanup</span></div>' +
+                    '<div class="header-info">' +
+                        '<button class="cleanup-btn" id="cleanup-toggle" onclick="toggleCleanup()">&#129529; Maintenance</button>' +
+                        '<span class="uptime-badge"><span class="status-dot"></span>' + uptimeStr + '</span>' +
+                        '<span class="server-name">' + (sys.hostname || 'unknown') + ' &middot; ' + sys.platform + '</span>' +
+                    '</div>' +
+                '</div>' +
+
+                '<div class="stats-bar">' +
+                    '<div class="stat-card" id="stat-cpu">' +
+                        '<div class="stat-label">CPU Usage</div>' +
+                        '<div class="stat-value">' + fmt(m.cpu) + '%</div>' +
+                        '<div class="stat-detail">' + cpuCores + ' cores &middot; load ' + loadStr + '</div>' +
+                    '</div>' +
+                    '<div class="stat-card" id="stat-ram">' +
+                        '<div class="stat-label">Memory</div>' +
+                        '<div class="stat-value">' + fmt(m.ram.percent) + '%</div>' +
+                        '<div class="stat-detail">' + fmtBytes(m.ram.used) + ' / ' + fmtBytes(m.ram.total) + '</div>' +
+                    '</div>' +
+                    '<div class="stat-card" id="stat-disk">' +
+                        '<div class="stat-label">Disk Total</div>' +
+                        '<div class="stat-value">' + fmt(totalDiskPct) + '%</div>' +
+                        '<div class="stat-detail">' + fmtBytes(totalDiskUsed) + ' / ' + fmtBytes(totalDiskSize) + '</div>' +
+                    '</div>' +
+                    '<div class="stat-card" id="stat-net">' +
+                        '<div class="stat-label">Network Rate</div>' +
+                        '<div class="stat-value">' + fmt(netLastPoint, 1) + '</div>' +
+                        '<div class="stat-detail">KB/s total &middot; ' + Object.keys(m.network_ifaces || {}).length + ' interfaces</div>' +
+                    '</div>' +
+                '</div>' +
+
+                '<div class="charts-grid">' +
+                    '<div class="chart-card">' +
+                        '<h3>CPU Usage (%)</h3>' +
+                        '<div class="chart-container"><canvas id="cpuChart"></canvas></div>' +
+                    '</div>' +
+                    '<div class="chart-card">' +
+                        '<h3>Memory Usage (%)</h3>' +
+                        '<div class="chart-container"><canvas id="ramChart"></canvas></div>' +
+                    '</div>' +
+                '</div>' +
+
+                '<div class="charts-row">' +
+                    '<div class="chart-card">' +
+                        '<h3>Network Traffic (KB/s)</h3>' +
+                        '<div class="chart-container"><canvas id="netChart"></canvas></div>' +
+                    '</div>';
+
+            // Disks
+            html += '<div class="info-section"><h3>Disk Space</h3><div class="disk-grid">';
+            if (m.disk && m.disk.length > 0) {
+                m.disk.forEach(function(d) {
+                    html += '<div class="disk-item">' +
+                        '<div class="disk-name">' + d.device + '</div>' +
+                        '<div class="disk-mount">' + d.mountpoint + ' (' + d.fstype + ')</div>' +
+                        '<div class="disk-bar"><div class="disk-bar-fill" style="width:' + d.percent + '%;background:' + diskColor(d.percent) + '"></div></div>' +
+                        '<div class="disk-info"><span>' + fmtBytes(d.used) + ' / ' + fmtBytes(d.total) + '</span><span>' + fmt(d.percent) + '%</span></div>' +
+                    '</div>';
+                });
+            } else {
+                html += '<div style="color:var(--text-secondary);font-size:13px">No disk data available</div>';
+            }
+            html += '</div></div>';
+
+            // Network interfaces
+            html += '<div class="info-section"><h3>Network Interfaces</h3><div class="network-grid">';
+            var ifaces = m.network_ifaces || {};
+            var ifaceNames = Object.keys(ifaces);
+            if (ifaceNames.length > 0) {
+                ifaceNames.forEach(function(name) {
+                    var iface = ifaces[name];
+                    html += '<div class="network-item">' +
+                        '<span class="network-name">' + name + '</span>' +
+                        '<span class="network-ip">' + (iface.ip || '-') + (iface.mac ? ' &middot; ' + iface.mac : '') + '</span>' +
+                    '</div>';
+                });
+            } else {
+                html += '<div style="color:var(--text-secondary);font-size:13px">No network interfaces</div>';
+            }
+            html += '</div></div>';
+
+            // Temperatures
+            if (m.temps && m.temps.length > 0) {
+                html += '<div class="info-section"><h3>Temperatures</h3><div class="temps-grid">';
+                m.temps.forEach(function(t) {
+                    html += '<div class="temp-item">' +
+                        '<div class="temp-label">' + (t.label || 'sensor') + '</div>' +
+                        '<div class="temp-value ' + tempClass(t.current) + '">' + fmt(t.current, 0) + '&deg;C</div>' +
+                        '<div style="font-size:10px;color:var(--text-secondary);margin-top:4px">max ' + fmt(t.high, 0) + '&deg;C</div>' +
+                    '</div>';
+                });
+                html += '</div></div>';
+            }
+
+            // Top processes
+            html += '<div class="info-section"><h3>Top Processes</h3>' +
+                '<table class="processes-table">' +
+                    '<thead><tr><th>PID</th><th>Name</th><th>CPU%</th><th>Memory%</th></tr></thead><tbody>';
+            if (m.top_processes && m.top_processes.length > 0) {
+                m.top_processes.slice(0, 8).forEach(function(p) {
+                    html += '<tr><td>' + p.pid + '</td><td>' + p.name + '</td><td>' + fmt(p.cpu, 1) + '%</td><td>' + fmt(p.mem, 1) + '%</td></tr>';
+                });
+            } else {
+                html += '<tr><td colspan="4" style="color:var(--text-secondary)">No process data</td></tr>';
+            }
+            html += '</tbody></table></div>';
+
+            // Cleanup panel
+            html += '<div class="cleanup-panel cleanup-section" id="cleanup-panel">' +
+                '<h3>&#129529; Maintenance &mdash; Disk Cleanup</h3>' +
+                '<div class="cleanup-grid" id="cleanup-items"></div>' +
+                '<div style="display:flex;align-items:center;gap:12px">' +
+                    '<button class="cleanup-run" id="cleanup-run-btn" onclick="runCleanup()">Run Cleanup</button>' +
+                    '<span style="font-size:12px;color:var(--text-secondary)" id="cleanup-select-hint">Select items above, or run all</span>' +
+                '</div>' +
+                '<div class="cleanup-result" id="cleanup-result"></div>' +
+            '</div>';
+
+            html += '</div>';
+            document.getElementById('app').innerHTML = html;
+
+            // Show disk alert if above 90%
+            if (totalDiskPct > 90) {
+                var alertEl = document.getElementById('disk-alert');
+                if (alertEl) alertEl.classList.add('active');
+            }
+        }
+
+        // ── Cleanup Functions ──
+
+        var cleanupLoaded = false;
+
+        function toggleCleanup() {
+            var panel = document.getElementById('cleanup-panel');
+            if (!cleanupLoaded) { loadCleanupItems(); cleanupLoaded = true; }
+            panel.classList.toggle('active');
+        }
+
+        async function loadCleanupItems() {
+            var grid = document.getElementById('cleanup-items');
+            grid.innerHTML = '<div style="color:var(--text-secondary);font-size:12px">Loading...</div>';
+            var data = await fetchJSON(API + '/cleanup/status');
+            if (!data || !data.items) {
+                grid.innerHTML = '<div style="color:var(--danger);font-size:12px">Failed to load</div>';
+                return;
+            }
+            grid.innerHTML = '';
+            data.items.forEach(function(item) {
+                var div = document.createElement('div');
+                div.className = 'cleanup-item';
+                div.innerHTML = '<input type="checkbox" id="cln-' + item.id + '" checked>' +
+                    '<div><div>' + item.name + '</div><div class="desc">' + item.description + '</div></div>';
+                div.onclick = function(e) { if (e.target.tagName !== 'INPUT') { var cb = this.querySelector('input'); cb.checked = !cb.checked; } };
+                grid.appendChild(div);
+            });
+        }
+
+        async function runCleanup() {
+            var btn = document.getElementById('cleanup-run-btn');
+            var result = document.getElementById('cleanup-result');
+            btn.disabled = true;
+            btn.textContent = 'Running...';
+            btn.classList.add('running');
+            result.className = 'cleanup-result';
+            result.style.display = 'none';
+
+            var selected = [];
+            document.querySelectorAll('#cleanup-items input:checked').forEach(function(cb) {
+                selected.push(cb.id.replace('cln-', ''));
+            });
+
+            var data = null;
+            try {
+                var r = await fetch(API + '/cleanup/run', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ items: selected.length > 0 ? selected : null })
+                });
+                data = await r.json();
+            } catch(e) {
+                console.error('Cleanup failed', e);
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Run Cleanup';
+            btn.classList.remove('running');
+
+            if (data && data.total_freed > 0) {
+                result.className = 'cleanup-result success';
+                result.innerHTML = '&#10003; Freed <b>' + data.total_freed_str + '</b>' +
+                    '<div style="margin-top:6px;font-size:11px;color:var(--text-secondary)">' +
+                    data.items.filter(function(i) { return i.success; }).map(function(i) { return i.name + ' (+' + i.freed_str + ')'; }).join(' &middot; ') +
+                    '</div>';
+            } else if (data) {
+                result.className = 'cleanup-result success';
+                result.innerHTML = '&#10003; Nothing to clean &mdash; all clear!';
+            } else {
+                result.className = 'cleanup-result error';
+                result.innerHTML = '&#10007; Cleanup failed. Check server logs.';
+            }
+        }
+
+        async function poll() {
+            var m = await fetchJSON(API + '/metrics');
+            if (!m) return;
+            updateHistory(m, false);
+            updateCharts();
+
+            // Update stat cards
+            var cpuEl = document.querySelector('#stat-cpu .stat-value');
+            var ramEl = document.querySelector('#stat-ram .stat-value');
+            if (cpuEl) cpuEl.textContent = fmt(m.cpu) + '%';
+            if (ramEl) ramEl.textContent = fmt(m.ram.percent) + '%';
+        }
+
+        loadAll().then(function() {
+            setInterval(poll, CONFIG.interval);
+        });
+    </script>
+</body>
+</html>
