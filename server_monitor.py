@@ -6,11 +6,85 @@ import platform
 import socket
 import json
 import threading
+import os
+import shutil
+import subprocess
 from flask import Flask, jsonify, request
 from datetime import datetime
 import cleanup
 
 app = Flask(__name__)
+
+ALLOWED_ROOTS = ["/", "/home", "/opt", "/var", "/tmp"]
+
+def _safe_path(path):
+    """Normalize and validate path to prevent traversal attacks."""
+    if not path:
+        path = "/"
+    path = os.path.abspath(os.path.normpath(path))
+    # Allow any absolute path for local admin use, but block common sensitive paths
+    blocked = ["/proc", "/sys", "/dev", "/run", "/boot"]
+    for b in blocked:
+        if path.startswith(b):
+            return "/"
+    return path
+
+def _size_str(size):
+    if size >= 1073741824:
+        return f"{size / 1073741824:.1f} GB"
+    if size >= 1048576:
+        return f"{size / 1048576:.1f} MB"
+    if size >= 1024:
+        return f"{size / 1024:.1f} KB"
+    return f"{size} B"
+
+def _list_dir(path):
+    """List directory contents with sizes."""
+    path = _safe_path(path)
+    items = []
+    try:
+        for entry in os.scandir(path):
+            try:
+                stat = entry.stat(follow_symlinks=False)
+                mtime = stat.st_mtime
+                if entry.is_dir(follow_symlinks=False):
+                    # Get dir size via du for speed
+                    try:
+                        r = subprocess.run(["du", "-sb", entry.path], capture_output=True, text=True, timeout=5)
+                        size = int(r.stdout.split()[0]) if r.returncode == 0 else 0
+                    except Exception:
+                        size = 0
+                    items.append({
+                        "name": entry.name,
+                        "type": "dir",
+                        "size": size,
+                        "size_str": _size_str(size),
+                        "mtime": mtime
+                    })
+                else:
+                    items.append({
+                        "name": entry.name,
+                        "type": "file",
+                        "size": stat.st_size,
+                        "size_str": _size_str(stat.st_size),
+                        "mtime": mtime
+                    })
+            except (OSError, PermissionError):
+                continue
+    except (OSError, PermissionError):
+        pass
+    # Sort: dirs first, then alphabetically
+    items.sort(key=lambda x: (0 if x["type"] == "dir" else 1, x["name"].lower()))
+    return items
+
+def _get_dir_size(path):
+    try:
+        r = subprocess.run(["du", "-sb", path], capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            return int(r.stdout.split()[0])
+    except Exception:
+        pass
+    return 0
 
 def get_cpu():
     return psutil.cpu_percent(interval=1, percpu=False)
@@ -179,6 +253,37 @@ def cleanup_run():
     items = data.get("items", None)
     result = cleanup.run_cleanup(items)
     return jsonify(result)
+
+# ── File Manager Endpoints ──
+
+@app.route("/api/files/list")
+def files_list():
+    path = request.args.get("path", "/")
+    path = _safe_path(path)
+    items = _list_dir(path)
+    total_size = _get_dir_size(path)
+    return jsonify({
+        "path": path,
+        "items": items,
+        "total_size": total_size,
+        "total_size_str": _size_str(total_size)
+    })
+
+@app.route("/api/files/delete", methods=["POST"])
+def files_delete():
+    data = request.get_json(silent=True) or {}
+    path = data.get("path", "")
+    path = _safe_path(path)
+    if not os.path.exists(path):
+        return jsonify({"success": False, "error": "Path not found"}), 404
+    try:
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
+        return jsonify({"success": True, "path": path})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == "__main__":
     from config import SERVER_PORT, SERVER_HOST, UPDATE_INTERVAL, ENABLE_TEMPS, LOG_LEVEL

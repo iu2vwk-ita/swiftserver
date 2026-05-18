@@ -372,6 +372,92 @@
             display: none;
         }
         .disk-alert.active { display: block; }
+
+        /* ── File Manager ── */
+        .file-manager {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .file-manager h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+        }
+        .file-toolbar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .file-toolbar input {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 10px;
+            color: var(--text-primary);
+            font-size: 13px;
+            flex: 1;
+            min-width: 200px;
+        }
+        .file-toolbar button {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .file-toolbar button:hover { border-color: var(--accent); }
+        .file-toolbar .btn-danger { color: var(--danger); }
+        .file-toolbar .btn-danger:hover { background: var(--danger); color: white; }
+        .file-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .file-item:last-child { border-bottom: none; }
+        .file-item:hover { background: var(--bg-secondary); }
+        .file-item .icon { width: 18px; text-align: center; }
+        .file-item .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-item .size { color: var(--text-secondary); font-size: 11px; min-width: 70px; text-align: right; }
+        .file-item .date { color: var(--text-secondary); font-size: 11px; min-width: 110px; text-align: right; }
+        .file-item .delete-btn {
+            background: transparent;
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .file-item:hover .delete-btn { opacity: 1; }
+        .file-item .delete-btn:hover { background: var(--danger); color: white; }
+        .file-empty {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
@@ -434,6 +520,7 @@
             updateHistory(metrics, true);
             renderDashboard(sys, metrics);
             initCharts();
+            loadFiles('/');
         }
 
         function updateHistory(m, init) {
@@ -559,11 +646,19 @@
                     '</div>' +
                 '</div>' +
 
-                '<div class="charts-row">' +
+                '<div class="charts-grid">' +
                     '<div class="chart-card">' +
                         '<h3>Network Traffic (KB/s)</h3>' +
                         '<div class="chart-container"><canvas id="netChart"></canvas></div>' +
-                    '</div>';
+                    '</div>' +
+                    '<div class="chart-card" id="load-card">' +
+                        '<h3>System Load</h3>' +
+                        '<div class="chart-container" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px">' +
+                            '<div style="font-size:28px;font-weight:700;color:var(--text-primary)" id="load-1m">' + fmt(m.load['1min'], 2) + '</div>' +
+                            '<div style="font-size:12px;color:var(--text-secondary)">5min: ' + fmt(m.load['5min'], 2) + ' &middot; 15min: ' + fmt(m.load['15min'], 2) + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
 
             // Disks
             html += '<div class="info-section"><h3>Disk Space</h3><div class="disk-grid">';
@@ -623,6 +718,18 @@
                 html += '<tr><td colspan="4" style="color:var(--text-secondary)">No process data</td></tr>';
             }
             html += '</tbody></table></div>';
+
+            // File Manager
+            html += '<div class="file-manager" id="file-manager">' +
+                '<h3>&#128193; File Manager</h3>' +
+                '<div class="file-toolbar">' +
+                    '<input type="text" id="file-path" placeholder="Path..." onkeydown="if(event.key==\'Enter\')navigateTo(document.getElementById(\'file-path\').value)">' +
+                    '<button onclick="navigateTo(document.getElementById(\'file-path\').value)">Go</button>' +
+                    '<button onclick="navigateUp()">&#8593; Up</button>' +
+                    '<button onclick="reloadFiles()">&#8635; Reload</button>' +
+                '</div>' +
+                '<div class="file-list" id="file-list"><div class="file-empty">Loading...</div></div>' +
+            '</div>';
 
             // Cleanup panel
             html += '<div class="cleanup-panel cleanup-section" id="cleanup-panel">' +
@@ -719,6 +826,103 @@
             }
         }
 
+        // ── File Manager ──
+
+        var currentPath = '/';
+
+        function fmtDate(ts) {
+            if (!ts) return '-';
+            var d = new Date(ts * 1000);
+            return d.getFullYear().toString().slice(2) + '/' +
+                ('0' + (d.getMonth() + 1)).slice(-2) + '/' +
+                ('0' + d.getDate()).slice(-2) + ' ' +
+                ('0' + d.getHours()).slice(-2) + ':' +
+                ('0' + d.getMinutes()).slice(-2);
+        }
+
+        async function loadFiles(path) {
+            var list = document.getElementById('file-list');
+            if (!list) return;
+            list.innerHTML = '<div class="file-empty">Loading...</div>';
+            try {
+                var r = await fetch(API + '/files/list?path=' + encodeURIComponent(path));
+                var data = await r.json();
+                currentPath = data.path;
+                var input = document.getElementById('file-path');
+                if (input) input.value = data.path;
+
+                if (!data.items || data.items.length === 0) {
+                    list.innerHTML = '<div class="file-empty">Empty directory</div>';
+                    return;
+                }
+                list.innerHTML = '';
+                data.items.forEach(function(f) {
+                    var row = document.createElement('div');
+                    row.className = 'file-item';
+                    var icon = f.type === 'dir' ? '&#128193;' : '&#128196;';
+                    row.innerHTML =
+                        '<span class="icon">' + icon + '</span>' +
+                        '<span class="name">' + f.name + (f.type === 'dir' ? '/' : '') + '</span>' +
+                        '<span class="size">' + f.size_str + '</span>' +
+                        '<span class="date">' + fmtDate(f.mtime) + '</span>' +
+                        '<button class="delete-btn" data-path="' + encodeURIComponent(data.path + '/' + f.name) + '">&times;</button>';
+
+                    row.onclick = function(e) {
+                        if (e.target.className === 'delete-btn') return;
+                        if (f.type === 'dir') {
+                            navigateTo(data.path + '/' + f.name);
+                        }
+                    };
+                    list.appendChild(row);
+                });
+
+                // Attach delete handlers
+                list.querySelectorAll('.delete-btn').forEach(function(btn) {
+                    btn.onclick = function(e) {
+                        e.stopPropagation();
+                        var p = decodeURIComponent(btn.getAttribute('data-path'));
+                        deletePath(p);
+                    };
+                });
+            } catch(e) {
+                list.innerHTML = '<div class="file-empty">Failed to load: ' + e.message + '</div>';
+            }
+        }
+
+        function navigateTo(path) {
+            path = path || '/';
+            loadFiles(path);
+        }
+
+        function navigateUp() {
+            var parent = currentPath.substring(0, currentPath.lastIndexOf('/'));
+            if (!parent || parent === '') parent = '/';
+            loadFiles(parent);
+        }
+
+        function reloadFiles() {
+            loadFiles(currentPath);
+        }
+
+        async function deletePath(path) {
+            if (!confirm('Delete ' + path + '?')) return;
+            try {
+                var r = await fetch(API + '/files/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: path})
+                });
+                var data = await r.json();
+                if (data.success) {
+                    reloadFiles();
+                } else {
+                    alert('Delete failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch(e) {
+                alert('Delete failed: ' + e.message);
+            }
+        }
+
         async function poll() {
             var m = await fetchJSON(API + '/metrics');
             if (!m) return;
@@ -730,6 +934,14 @@
             var ramEl = document.querySelector('#stat-ram .stat-value');
             if (cpuEl) cpuEl.textContent = fmt(m.cpu) + '%';
             if (ramEl) ramEl.textContent = fmt(m.ram.percent) + '%';
+
+            // Update load card
+            var load1m = document.getElementById('load-1m');
+            if (load1m && m.load) {
+                load1m.textContent = fmt(m.load['1min'], 2);
+                var loadDiv = load1m.parentElement.querySelector('div:last-child');
+                if (loadDiv) loadDiv.innerHTML = '5min: ' + fmt(m.load['5min'], 2) + ' &middot; 15min: ' + fmt(m.load['15min'], 2);
+            }
         }
 
         loadAll().then(function() {
