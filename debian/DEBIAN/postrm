@@ -1,0 +1,21 @@
+#!/bin/bash
+set -e
+
+SERVICE_NAME="bytesweep"
+
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+    echo "ByteSweep: Stopping and removing services..."
+    systemctl stop ${SERVICE_NAME} 2>/dev/null || true
+    systemctl stop ${SERVICE_NAME}-cleanup.timer 2>/dev/null || true
+    systemctl disable ${SERVICE_NAME} 2>/dev/null || true
+    systemctl disable ${SERVICE_NAME}-cleanup.timer 2>/dev/null || true
+    rm -f /etc/systemd/system/${SERVICE_NAME}.service
+    rm -f /etc/systemd/system/${SERVICE_NAME}-cleanup.service
+    rm -f /etc/systemd/system/${SERVICE_NAME}-cleanup.timer
+    systemctl daemon-reload 2>/dev/null || true
+fi
+
+if [ "$1" = "purge" ]; then
+    echo "ByteSweep: Removing installation directory..."
+    rm -rf /opt/server-monitor
+fi

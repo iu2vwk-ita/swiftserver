@@ -1,0 +1,65 @@
+name: bytesweep
+version: '1.0.0'
+summary: Linux server monitoring dashboard with auto-cleanup
+description: |
+  ByteSweep is a lightweight, real-time Linux server monitoring
+  dashboard with integrated disk cleanup utilities -- perfect for
+  purging heavy AI-generated temporary files and cache.
+
+  Features:
+  - Real-time CPU, memory, disk, and network metrics
+  - Interactive charts (Chart.js)
+  - Top processes table
+  - File manager with directory browsing and deletion
+  - One-click maintenance cleanup (APT, logs, Docker, caches)
+  - Auto-cleanup agent (hourly timer)
+  - Responsive dark UI
+  - 10 built-in cleaners
+
+base: core24
+grade: stable
+confinement: classic
+adopt-info: bytesweep
+
+apps:
+  bytesweep:
+    command: bin/python $SNAP/opt/server-monitor/server_monitor.py
+    daemon: simple
+    restart-condition: always
+    plugs:
+      - network
+      - network-bind
+      - system-observe
+      - hardware-observe
+      - mount-observe
+      - process-control
+      - system-files
+      - home
+      - removable-media
+
+  cleanup:
+    command: bin/python $SNAP/opt/server-monitor/cleanup.py
+    plugs:
+      - network
+      - system-observe
+      - process-control
+
+parts:
+  bytesweep:
+    plugin: dump
+    source: .
+    organize:
+      server_monitor.py: opt/server-monitor/server_monitor.py
+      cleanup.py: opt/server-monitor/cleanup.py
+      auto_cleanup.py: opt/server-monitor/auto_cleanup.py
+      config.py: opt/server-monitor/config.py
+      requirements.txt: opt/server-monitor/requirements.txt
+      static/index.html: opt/server-monitor/static/index.html
+
+  python-deps:
+    plugin: python
+    source: .
+    python-packages:
+      - Flask==3.0.0
+      - psutil==5.9.8
+      - netifaces==0.11.0

@@ -1,0 +1,67 @@
+#!/bin/bash
+set -e
+
+INSTALL_DIR="/opt/server-monitor"
+SERVICE_NAME="bytesweep"
+
+echo "ByteSweep: Setting up Python virtual environment..."
+python3 -m venv "$INSTALL_DIR/venv"
+"$INSTALL_DIR/venv/bin/pip" install --quiet -r "$INSTALL_DIR/requirements.txt"
+
+echo "ByteSweep: Installing systemd service..."
+cat > /etc/systemd/system/${SERVICE_NAME}.service << 'UNIT'
+[Unit]
+Description=ByteSweep - Server Monitor & Auto-Cleanup Agent
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/server-monitor
+ExecStart=/opt/server-monitor/venv/bin/python /opt/server-monitor/server_monitor.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+cat > /etc/systemd/system/${SERVICE_NAME}-cleanup.service << 'UNIT'
+[Unit]
+Description=ByteSweep Auto-Cleanup
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/server-monitor
+ExecStart=/opt/server-monitor/venv/bin/python /opt/server-monitor/auto_cleanup.py
+UNIT
+
+cat > /etc/systemd/system/${SERVICE_NAME}-cleanup.timer << 'UNIT'
+[Unit]
+Description=ByteSweep Auto-Cleanup Timer (hourly)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable ${SERVICE_NAME}
+systemctl enable ${SERVICE_NAME}-cleanup.timer
+systemctl start ${SERVICE_NAME}
+systemctl start ${SERVICE_NAME}-cleanup.timer
+
+echo ""
+echo "ByteSweep installed successfully!"
+echo "Dashboard: http://$(hostname -I | awk '{print $1}'):5000"
+echo ""
+echo "Commands:"
+echo "  sudo systemctl status bytesweep"
+echo "  sudo systemctl restart bytesweep"
+echo "  sudo journalctl -u bytesweep -f"
+echo ""

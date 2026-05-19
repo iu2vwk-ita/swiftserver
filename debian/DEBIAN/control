@@ -1,0 +1,21 @@
+Package: bytesweep
+Version: 1.0.0
+Architecture: all
+Maintainer: Adivor <adivor@gmail.com>
+Depends: python3, python3-pip, python3-venv, python3-flask | python3 (>= 3.8), systemd
+Section: admin
+Priority: optional
+Homepage: https://github.com/iu2vwk-ita/swiftserver
+Description: Linux server monitoring dashboard with auto-cleanup
+ ByteSweep is a lightweight, real-time Linux server monitoring
+ dashboard with integrated disk cleanup utilities.
+ .
+ Features:
+  - Real-time CPU, memory, disk, and network metrics
+  - Interactive charts (Chart.js)
+  - Top processes table
+  - File manager with directory browsing and deletion
+  - One-click maintenance cleanup (APT, logs, Docker, caches)
+  - Auto-cleanup agent (hourly systemd timer)
+  - Responsive dark UI
+  - 10 built-in cleaners

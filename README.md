@@ -1,72 +1,166 @@
-# SwiftServer
+# ByteSweep (SwiftServer)
 
-A lightweight, real-time Linux server monitoring dashboard with integrated disk cleanup utilities perfect for purging heavy AI generated temporary files and cache. Built with Flask and vanilla JavaScript for zero dependency deployment on remote or headless machines.
+A lightweight, real-time Linux server monitoring dashboard with integrated disk cleanup utilities -- perfect for purging heavy AI-generated temporary files and cache. Built with Flask and vanilla JavaScript for zero-dependency deployment on remote or headless machines.
 
 ## Features
 
-- **Real-time Metrics** — Live CPU, memory, disk, and network charts (Chart.js)
-- **System Overview** — Uptime, load average, CPU core count, temperature sensors
-- **Top Processes** — Auto-updating table of the most CPU-intensive processes
-- **Network Details** — Per-interface IP and MAC address discovery
-- **Disk Visualization** — Partition usage with color-coded progress bars
-- **One-Click Cleanup** — Web UI to run maintenance cleaners (APT, logs, Docker, caches)
-- **Auto-Cleanup Agent** — Background timer that cleans automatically when disk exceeds 90%
-- **Responsive Dark UI** — Works on desktop, tablet, and mobile
+- **Real-time Metrics** -- Live CPU, memory, disk, and network charts (Chart.js)
+- **System Overview** -- Uptime, load average, CPU core count, temperature sensors
+- **Top Processes** -- Auto-updating table of the most CPU-intensive processes
+- **Network Details** -- Per-interface IP and MAC address discovery
+- **Disk Visualization** -- Partition usage with color-coded progress bars
+- **One-Click Cleanup** -- Web UI to run maintenance cleaners (APT, logs, Docker, caches)
+- **Auto-Cleanup Agent** -- Background timer that cleans automatically when disk exceeds 90%
+- **Responsive Dark UI** -- Works on desktop, tablet, and mobile
 
 ## Screenshots
 
 <img width="1181" height="819" alt="Screenshot 2026-05-19 014518" src="https://github.com/user-attachments/assets/3ee8df11-ac9a-42ee-8bd9-b7460ef5bfba" />
 <img width="1171" height="931" alt="Screenshot 2026-05-19 014534" src="https://github.com/user-attachments/assets/f712c341-2444-46a6-949f-93edac867253" />
 
-Access the dashboard at `http://your-server-ip:5000` after starting the server.
+## Installation
 
-## Quick Start
+Choose your distribution's package format:
 
-### 1. Clone the repository
+### Debian / Ubuntu / Linux Mint / Pop!_OS
+
+```bash
+# Download and install the .deb package
+sudo dpkg -i bytesweep_1.0.0_all.deb
+
+# Or build from source
+chmod +x build-deb.sh
+./build-deb.sh
+sudo dpkg -i bytesweep_1.0.0_all.deb
+```
+
+### Fedora / RHEL / CentOS / Rocky Linux
+
+```bash
+# Install the RPM package
+sudo rpm -i bytesweep-1.0.0-1.noarch.rpm
+
+# Or build from source
+chmod +x build-rpm.sh
+./build-rpm.sh
+sudo rpm -i bytesweep-1.0.0-1.*.rpm
+```
+
+### Arch Linux / Manjaro / EndeavourOS
+
+```bash
+# Build and install with makepkg
+makepkg -si
+
+# Or use the helper script
+chmod +x build-arch.sh
+./build-arch.sh
+```
+
+### AppImage (Any Linux distribution)
+
+```bash
+chmod +x ByteSweep-1.0.0-x86_64.AppImage
+./ByteSweep-1.0.0-x86_64.AppImage
+
+# Dashboard available at http://0.0.0.0:5000
+```
+
+### Snap (Any Linux with snapd)
+
+```bash
+# Build and install the snap
+snapcraft
+sudo snap install bytesweep_*.snap --dangerous --classic
+```
+
+### Universal Install Script (Any Linux)
+
+```bash
+# Clone the repository
+git clone https://github.com/iu2vwk-ita/swiftserver.git
+cd swiftserver
+
+# Run the installer
+chmod +x install.sh
+sudo ./install.sh
+
+# Or with auto-cleanup enabled
+sudo ./install.sh --with-auto-cleanup
+```
+
+The universal installer automatically detects your distribution and installs all dependencies.
+
+---
+
+After installation, the dashboard is available at **http://your-server-ip:5000**
+
+## Service Management
+
+```bash
+# Check service status
+sudo systemctl status bytesweep
+
+# Restart the service
+sudo systemctl restart bytesweep
+
+# Stop the service
+sudo systemctl stop bytesweep
+
+# View live logs
+sudo journalctl -u bytesweep -f
+
+# Check auto-cleanup timer
+sudo systemctl status bytesweep-cleanup.timer
+```
+
+## Uninstall
+
+### Debian/Ubuntu
+```bash
+sudo apt remove bytesweep      # Remove (keeps config)
+sudo apt purge bytesweep        # Remove everything
+```
+
+### Fedora/RHEL
+```bash
+sudo rpm -e bytesweep
+```
+
+### Arch Linux
+```bash
+sudo pacman -R bytesweep        # Remove
+sudo pacman -Rns bytesweep      # Remove with dependencies
+```
+
+### AppImage
+```bash
+# Just delete the file and stop the process
+pkill -f server_monitor.py
+rm ByteSweep-*.AppImage
+```
+
+## Quick Start (Development)
 
 ```bash
 git clone https://github.com/iu2vwk-ita/swiftserver.git
 cd swiftserver
-```
-
-### 2. Create a virtual environment
-
-```bash
 python3 -m venv venv
 source venv/bin/activate
-```
-
-### 3. Install dependencies
-
-```bash
 pip install -r requirements.txt
-```
-
-### 4. Start the server
-
-```bash
 python server_monitor.py
 ```
 
-The dashboard will be available at **http://0.0.0.0:5000**
+## Configuration
 
-## Installation (Production)
+Edit `/opt/server-monitor/config.py` (or `config.py` for development):
 
-For a persistent system service with auto-cleanup:
-
-```bash
-chmod +x install.sh
-sudo ./install.sh
-```
-
-This installs SwiftServer under `/opt/server-monitor/`, creates a `systemd` service, and optionally sets up the hourly auto-cleanup agent.
-
-```bash
-# Check service status
-sudo systemctl status swiftserver
-
-# View logs
-sudo journalctl -u swiftserver -f
+```python
+SERVER_PORT = 5000          # Dashboard port
+SERVER_HOST = "0.0.0.0"     # Bind address
+UPDATE_INTERVAL = 2         # Seconds between metric refreshes
+ENABLE_TEMPS = True         # Enable temperature sensor reading
+LOG_LEVEL = "INFO"          # Logging verbosity
 ```
 
 ## API Reference
@@ -82,22 +176,12 @@ sudo journalctl -u swiftserver -f
 | `/api/network` | GET | Network I/O counters |
 | `/api/cleanup/status` | GET | List available cleaners and estimated savings |
 | `/api/cleanup/run` | POST | Run selected cleaners (JSON body: `{"items": ["apt","journal"]}`) |
-
-## Configuration
-
-Edit `config.py` to customize behavior:
-
-```python
-SERVER_PORT = 5000          # Dashboard port
-SERVER_HOST = "0.0.0.0"     # Bind address
-UPDATE_INTERVAL = 2         # Seconds between metric refreshes
-ENABLE_TEMPS = True         # Enable temperature sensor reading
-LOG_LEVEL = "INFO"          # Logging verbosity
-```
+| `/api/files/list` | GET | List directory contents (`?path=/opt`) |
+| `/api/files/delete` | POST | Delete file or directory (`{"path": "/opt/old-folder"}`) |
 
 ## Cleaners
 
-The cleanup module supports the following maintenance operations:
+The cleanup module supports 10 maintenance operations:
 
 | ID | Target | Description |
 |----|--------|-------------|
@@ -114,11 +198,11 @@ The cleanup module supports the following maintenance operations:
 
 ## Auto-Cleanup Agent
 
-The auto-cleanup agent runs every hour via `systemd` timer. It checks disk usage and automatically triggers all cleaners if any partition exceeds **90%** full.
+The auto-cleanup agent runs every hour via systemd timer. It checks disk usage and automatically triggers all cleaners if any partition exceeds **90%** full.
 
 ```bash
 # Check agent status
-sudo systemctl status swiftserver-cleanup.timer
+sudo systemctl status bytesweep-cleanup.timer
 
 # Run manually
 sudo /opt/server-monitor/venv/bin/python /opt/server-monitor/auto_cleanup.py
@@ -136,7 +220,28 @@ swiftserver/
 ├── auto_cleanup.py      # Background agent for automated cleanup
 ├── config.py            # Server and logging configuration
 ├── requirements.txt     # Python dependencies
-├── install.sh           # Production installation script
+├── install.sh           # Universal install script (all distros)
+│
+├── build-deb.sh         # Debian/Ubuntu package builder
+├── debian/              # Debian package control files
+│   └── DEBIAN/
+│       ├── control
+│       ├── postinst
+│       ├── postrm
+│       └── conffiles
+│
+├── build-rpm.sh         # Fedora/RHEL package builder
+├── rpm/                 # RPM build files
+│   └── bytesweep.spec
+│
+├── PKGBUILD             # Arch Linux package build
+├── bytesweep.install    # Arch post-install hooks
+├── build-arch.sh        # Arch package helper
+│
+├── build-appimage.sh    # AppImage builder
+├── snap/                # Snapcraft configuration
+│   └── snapcraft.yaml
+│
 └── static/
     └── index.html       # Dashboard frontend (vanilla JS + Chart.js)
 ```
@@ -144,7 +249,7 @@ swiftserver/
 ## Requirements
 
 - Python 3.8+
-- Linux with `systemd` (recommended for production)
+- Linux with systemd (recommended for production)
 - Root access required for cleanup operations
 
 **Dependencies:**
