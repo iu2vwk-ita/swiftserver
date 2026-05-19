@@ -2,7 +2,8 @@ Package: bytesweep
 Version: 1.0.0
 Architecture: all
 Maintainer: Adivor <adivor@gmail.com>
-Depends: python3, python3-pip, python3-venv, python3-flask | python3 (>= 3.8), systemd
+Depends: python3 (>= 3.8)
+Recommends: python3-pip, python3-venv, systemd
 Section: admin
 Priority: optional
 Homepage: https://github.com/iu2vwk-ita/swiftserver
@@ -15,6 +16,7 @@ Description: Linux server monitoring dashboard with auto-cleanup
   - Interactive charts (Chart.js)
   - Top processes table
   - File manager with directory browsing and deletion
+  - Web terminal (xterm.js + PTY bash shell)
   - One-click maintenance cleanup (APT, logs, Docker, caches)
   - Auto-cleanup agent (hourly systemd timer)
   - Responsive dark UI

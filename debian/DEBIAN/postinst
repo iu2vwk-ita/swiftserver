@@ -4,12 +4,42 @@ set -e
 INSTALL_DIR="/opt/server-monitor"
 SERVICE_NAME="bytesweep"
 
-echo "ByteSweep: Setting up Python virtual environment..."
-python3 -m venv "$INSTALL_DIR/venv"
-"$INSTALL_DIR/venv/bin/pip" install --quiet -r "$INSTALL_DIR/requirements.txt"
+# ── Install missing deps if needed ──
 
-echo "ByteSweep: Installing systemd service..."
-cat > /etc/systemd/system/${SERVICE_NAME}.service << 'UNIT'
+install_missing() {
+    local pkg=$1
+    if ! dpkg -s "$pkg" >/dev/null 2>&1; then
+        echo "ByteSweep: Installing missing dependency: $pkg..."
+        apt-get update -qq 2>/dev/null || true
+        apt-get install -y -qq "$pkg" 2>/dev/null || true
+    fi
+}
+
+install_missing python3-venv
+install_missing python3-pip
+
+# ── Set up Python venv ──
+
+echo "ByteSweep: Setting up Python virtual environment..."
+if ! python3 -m venv "$INSTALL_DIR/venv" 2>/dev/null; then
+    echo "ByteSweep: python3-venv not available, installing via pip..."
+    python3 -m pip install --quiet virtualenv 2>/dev/null || true
+    python3 -m virtualenv "$INSTALL_DIR/venv" 2>/dev/null || python3 -m venv "$INSTALL_DIR/venv" --without-pip 2>/dev/null || true
+fi
+
+if [ -f "$INSTALL_DIR/venv/bin/pip" ]; then
+    "$INSTALL_DIR/venv/bin/pip" install --quiet -r "$INSTALL_DIR/requirements.txt"
+elif [ -f "$INSTALL_DIR/venv/bin/python" ]; then
+    "$INSTALL_DIR/venv/bin/python" -m ensurepip --upgrade 2>/dev/null || true
+    "$INSTALL_DIR/venv/bin/pip" install --quiet -r "$INSTALL_DIR/requirements.txt" 2>/dev/null || true
+fi
+
+# ── Set up service (systemd or init.d) ──
+
+if command -v systemctl &>/dev/null; then
+    echo "ByteSweep: Installing systemd service..."
+
+    cat > /etc/systemd/system/${SERVICE_NAME}.service << 'UNIT'
 [Unit]
 Description=ByteSweep - Server Monitor & Auto-Cleanup Agent
 After=network.target
@@ -26,7 +56,7 @@ RestartSec=5
 WantedBy=multi-user.target
 UNIT
 
-cat > /etc/systemd/system/${SERVICE_NAME}-cleanup.service << 'UNIT'
+    cat > /etc/systemd/system/${SERVICE_NAME}-cleanup.service << 'UNIT'
 [Unit]
 Description=ByteSweep Auto-Cleanup
 After=network.target
@@ -38,7 +68,7 @@ WorkingDirectory=/opt/server-monitor
 ExecStart=/opt/server-monitor/venv/bin/python /opt/server-monitor/auto_cleanup.py
 UNIT
 
-cat > /etc/systemd/system/${SERVICE_NAME}-cleanup.timer << 'UNIT'
+    cat > /etc/systemd/system/${SERVICE_NAME}-cleanup.timer << 'UNIT'
 [Unit]
 Description=ByteSweep Auto-Cleanup Timer (hourly)
 
@@ -50,18 +80,42 @@ Persistent=true
 WantedBy=timers.target
 UNIT
 
-systemctl daemon-reload
-systemctl enable ${SERVICE_NAME}
-systemctl enable ${SERVICE_NAME}-cleanup.timer
-systemctl start ${SERVICE_NAME}
-systemctl start ${SERVICE_NAME}-cleanup.timer
+    systemctl daemon-reload
+    systemctl enable ${SERVICE_NAME} 2>/dev/null || true
+    systemctl enable ${SERVICE_NAME}-cleanup.timer 2>/dev/null || true
+    systemctl start ${SERVICE_NAME} 2>/dev/null || true
+    systemctl start ${SERVICE_NAME}-cleanup.timer 2>/dev/null || true
 
-echo ""
-echo "ByteSweep installed successfully!"
-echo "Dashboard: http://$(hostname -I | awk '{print $1}'):5000"
-echo ""
-echo "Commands:"
-echo "  sudo systemctl status bytesweep"
-echo "  sudo systemctl restart bytesweep"
-echo "  sudo journalctl -u bytesweep -f"
-echo ""
+    echo ""
+    echo "ByteSweep installed successfully!"
+    echo "Dashboard: http://$(hostname -I | awk '{print $1}'):5000"
+    echo ""
+    echo "Commands:"
+    echo "  sudo systemctl status bytesweep"
+    echo "  sudo systemctl restart bytesweep"
+    echo "  sudo journalctl -u bytesweep -f"
+    echo ""
+else
+    echo "ByteSweep: No systemd detected, using init.d fallback..."
+    cat > /etc/init.d/${SERVICE_NAME} << 'INIT'
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:          bytesweep
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Description:       ByteSweep Server Monitor
+### END INIT INFO
+case "$1" in
+    start)  cd /opt/server-monitor && nohup /opt/server-monitor/venv/bin/python /opt/server-monitor/server_monitor.py > /opt/server-monitor/logs/service.log 2>&1 & echo "ByteSweep started" ;;
+    stop)   pkill -f server_monitor.py && echo "ByteSweep stopped" ;;
+    restart) pkill -f server_monitor.py; sleep 1; cd /opt/server-monitor && nohup /opt/server-monitor/venv/bin/python /opt/server-monitor/server_monitor.py > /opt/server-monitor/logs/service.log 2>&1 & echo "ByteSweep restarted" ;;
+esac
+exit 0
+INIT
+    chmod +x /etc/init.d/${SERVICE_NAME}
+    if command -v update-rc.d &>/dev/null; then update-rc.d ${SERVICE_NAME} defaults; fi
+    /etc/init.d/${SERVICE_NAME} start
+    echo "ByteSweep installed (init.d). Dashboard: http://$(hostname -I | awk '{print $1}'):5000"
+fi

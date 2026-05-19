@@ -14,8 +14,7 @@ Source0:        https://github.com/iu2vwk-ita/swiftserver/archive/refs/tags/v%{_
 
 BuildArch:      noarch
 Requires:       python3 >= 3.8
-Requires:       python3-pip
-Requires:       systemd
+Recommends:     python3-pip, python3-venv, systemd
 
 %description
 ByteSweep is a lightweight, real-time Linux server monitoring
