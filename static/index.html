@@ -537,9 +537,7 @@
             border-radius: 12px;
             margin-bottom: 24px;
             overflow: hidden;
-            display: none;
         }
-        .terminal-panel.active { display: block; }
         .terminal-header {
             display: flex;
             justify-content: space-between;
@@ -626,6 +624,7 @@
             initCharts();
             loadFiles('/');
             loadCleanupItems();
+            initTerminal();
             cleanupLoaded = true;
         }
 
@@ -712,8 +711,6 @@
                     '<div><h1>ByteSweep</h1>' +
                     '<span class="disk-alert" id="disk-alert">&#9888; Disk above 90% &mdash; run cleanup</span></div>' +
                     '<div class="header-info">' +
-                        '<button class="cleanup-btn" id="cleanup-toggle" onclick="toggleCleanup()">&#129529; Maintenance</button>' +
-                        '<button class="terminal-btn" id="terminal-toggle" onclick="toggleTerminal()">&#9000; Terminal</button>' +
                         '<span class="uptime-badge"><span class="status-dot"></span>' + uptimeStr + '</span>' +
                         '<span class="server-name">' + (sys.hostname || 'unknown') + ' &middot; ' + sys.platform + '</span>' +
                     '</div>' +
@@ -876,22 +873,6 @@
         var termSocket = null;
         var resizeSocket = null;
 
-        function toggleTerminal() {
-            var panel = document.getElementById('terminal-panel');
-            var btn = document.getElementById('terminal-toggle');
-            if (!panel) return;
-
-            if (panel.classList.contains('active')) {
-                panel.classList.remove('active');
-                if (btn) btn.classList.remove('active');
-                disconnectTerminal();
-            } else {
-                panel.classList.add('active');
-                if (btn) btn.classList.add('active');
-                initTerminal();
-            }
-        }
-
         function initTerminal() {
             if (term) {
                 term.focus();
@@ -1019,12 +1000,6 @@
         // ── Cleanup Functions ──
 
         var cleanupLoaded = false;
-
-        function toggleCleanup() {
-            var panel = document.getElementById('cleanup-panel');
-            if (!cleanupLoaded) { loadCleanupItems(); cleanupLoaded = true; }
-            panel.classList.toggle('active');
-        }
 
         async function loadCleanupItems() {
             var grid = document.getElementById('cleanup-items');
