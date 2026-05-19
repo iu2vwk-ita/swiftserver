@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Server Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js"></script>
     <style>
         :root {
             --bg-primary: #0f1419;
@@ -512,6 +516,52 @@
             text-decoration: none;
         }
         .footer a:hover { text-decoration: underline; }
+
+        /* ── Terminal ── */
+        .terminal-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .terminal-btn:hover { border-color: var(--success); background: var(--bg-secondary); }
+        .terminal-btn.active { border-color: var(--success); background: rgba(16,185,129,0.15); }
+        .terminal-panel {
+            background: #0a0a0a;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 24px;
+            overflow: hidden;
+            display: none;
+        }
+        .terminal-panel.active { display: block; }
+        .terminal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 16px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+        }
+        .terminal-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--success);
+        }
+        .terminal-header span {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        .terminal-container {
+            height: 360px;
+            padding: 4px;
+        }
+        .terminal-container .xterm { height: 100%; }
     </style>
 </head>
 <body>
@@ -663,6 +713,7 @@
                     '<span class="disk-alert" id="disk-alert">&#9888; Disk above 90% &mdash; run cleanup</span></div>' +
                     '<div class="header-info">' +
                         '<button class="cleanup-btn" id="cleanup-toggle" onclick="toggleCleanup()">&#129529; Maintenance</button>' +
+                        '<button class="terminal-btn" id="terminal-toggle" onclick="toggleTerminal()">&#9000; Terminal</button>' +
                         '<span class="uptime-badge"><span class="status-dot"></span>' + uptimeStr + '</span>' +
                         '<span class="server-name">' + (sys.hostname || 'unknown') + ' &middot; ' + sys.platform + '</span>' +
                     '</div>' +
@@ -798,6 +849,15 @@
                 '<div class="cleanup-result" id="cleanup-result"></div>' +
             '</div>';
 
+            // Terminal panel
+            html += '<div class="terminal-panel" id="terminal-panel">' +
+                '<div class="terminal-header">' +
+                    '<h3>&#9000; Web Terminal &mdash; ' + (sys.hostname || 'server') + '</h3>' +
+                    '<span>Full bash shell &middot; Ctrl+D to exit</span>' +
+                '</div>' +
+                '<div class="terminal-container" id="terminal-container"></div>' +
+            '</div>';
+
             html += '<div class="footer"><a href="https://github.com/iu2vwk-ita/swiftserver" target="_blank">github.com/iu2vwk-ita/swiftserver</a></div>';
 
             html += '</div>';
@@ -807,6 +867,152 @@
             if (totalDiskPct > 90) {
                 var alertEl = document.getElementById('disk-alert');
                 if (alertEl) alertEl.classList.add('active');
+            }
+        }
+
+        // ── Web Terminal ──
+
+        var term = null;
+        var termSocket = null;
+        var resizeSocket = null;
+
+        function toggleTerminal() {
+            var panel = document.getElementById('terminal-panel');
+            var btn = document.getElementById('terminal-toggle');
+            if (!panel) return;
+
+            if (panel.classList.contains('active')) {
+                panel.classList.remove('active');
+                if (btn) btn.classList.remove('active');
+                disconnectTerminal();
+            } else {
+                panel.classList.add('active');
+                if (btn) btn.classList.add('active');
+                initTerminal();
+            }
+        }
+
+        function initTerminal() {
+            if (term) {
+                term.focus();
+                return;
+            }
+
+            var container = document.getElementById('terminal-container');
+            if (!container) return;
+
+            term = new Terminal({
+                cursorBlink: true,
+                cursorStyle: 'bar',
+                fontSize: 14,
+                fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                theme: {
+                    background: '#0a0a0a',
+                    foreground: '#e4e8f1',
+                    cursor: '#10b981',
+                    selectionBackground: 'rgba(16,185,129,0.3)',
+                    black: '#1a1f2e',
+                    red: '#ef4444',
+                    green: '#10b981',
+                    yellow: '#f59e0b',
+                    blue: '#3b82f6',
+                    magenta: '#a855f7',
+                    cyan: '#06b6d4',
+                    white: '#e4e8f1',
+                    brightBlack: '#475569',
+                    brightRed: '#f87171',
+                    brightGreen: '#34d399',
+                    brightYellow: '#fbbf24',
+                    brightBlue: '#60a5fa',
+                    brightMagenta: '#c084fc',
+                    brightCyan: '#22d3ee',
+                    brightWhite: '#f8fafc'
+                },
+                allowProposedApi: true,
+                scrollback: 5000
+            });
+
+            var fitAddon = new FitAddon.FitAddon();
+            var webLinksAddon = new WebLinksAddon.WebLinksAddon();
+            term.loadAddon(fitAddon);
+            term.loadAddon(webLinksAddon);
+            term.open(container);
+            fitAddon.fit();
+
+            // Resize observer
+            var ro = new ResizeObserver(function() {
+                try { fitAddon.fit(); } catch(e) {}
+                resizePty();
+            });
+            ro.observe(container);
+
+            // Connect WebSocket
+            var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            var wsUrl = proto + '//' + window.location.host + '/ws/terminal';
+
+            termSocket = new WebSocket(wsUrl);
+            termSocket.binaryType = 'arraybuffer';
+
+            termSocket.onopen = function() {
+                term.write('\r\n\x1b[32mConnected to ' + (term._core._renderService._renderer._options.theme ? 'server' : CONFIG.host) + '\x1b[0m\r\n\r\n');
+                term.focus();
+                resizePty();
+            };
+
+            termSocket.onmessage = function(e) {
+                if (term) {
+                    term.write(new Uint8Array(e.data));
+                }
+            };
+
+            termSocket.onclose = function() {
+                if (term) {
+                    term.write('\r\n\x1b[33mDisconnected\x1b[0m\r\n');
+                }
+            };
+
+            termSocket.onerror = function() {
+                if (term) {
+                    term.write('\r\n\x1b[31mConnection error\x1b[0m\r\n');
+                }
+            };
+
+            term.onData(function(data) {
+                if (termSocket && termSocket.readyState === WebSocket.OPEN) {
+                    termSocket.send(data);
+                }
+            });
+
+            // Resize WebSocket for PTY resize
+            var resizeWsUrl = proto + '//' + window.location.host + '/ws/terminal/resize';
+            resizeSocket = new WebSocket(resizeWsUrl);
+
+            function resizePty() {
+                if (term && resizeSocket && resizeSocket.readyState === WebSocket.OPEN) {
+                    resizeSocket.send(JSON.stringify({
+                        cols: term.cols,
+                        rows: term.rows
+                    }));
+                }
+            }
+
+            term.onResize(function() {
+                resizePty();
+            });
+        }
+
+        function disconnectTerminal() {
+            if (termSocket) {
+                try { termSocket.close(); } catch(e) {}
+                termSocket = null;
+            }
+            if (resizeSocket) {
+                try { resizeSocket.close(); } catch(e) {}
+                resizeSocket = null;
+            }
+            if (term) {
+                try { term.dispose(); } catch(e) {}
+                term = null;
             }
         }
 

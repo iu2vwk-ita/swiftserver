@@ -52,25 +52,16 @@ exec "$HERE/opt/server-monitor/venv/bin/python" "$HERE/opt/server-monitor/server
 EOF
 chmod +x "$APP_DIR/AppRun"
 
-# Create desktop entry
-cat > "$APP_DIR/usr/share/applications/bytesweep.desktop" << EOF
+# Create desktop entry (no icon to avoid missing-icon error)
+cat > "$APP_DIR/bytesweep.desktop" << 'DESKTOP'
 [Desktop Entry]
 Name=ByteSweep
 Comment=Linux Server Monitoring Dashboard
 Exec=AppRun
-Icon=bytesweep
 Terminal=true
 Type=Application
 Categories=System;Monitor;
-EOF
-
-# Create icon placeholder (generate a simple SVG)
-cat > "$APP_DIR/usr/share/icons/hicolor/256x256/apps/bytesweep.png" << 'EOF'
-# Placeholder icon - replace with actual icon file
-EOF
-
-# Copy icon for AppImage
-cp "$APP_DIR/usr/share/icons/hicolor/256x256/apps/bytesweep.png" "$APP_DIR/bytesweep.png" 2>/dev/null || true
+DESKTOP
 
 # Build AppImage
 ARCH=$(uname -m)

@@ -20,76 +20,51 @@ A lightweight, real-time Linux server monitoring dashboard with integrated disk 
 
 ## Installation
 
-Choose your distribution's package format:
+Pre-built packages in this repository:
+
+| Format | Package | Size |
+|--------|---------|------|
+| **Debian/Ubuntu** | [`bytesweep_1.0.0_all.deb`](./bytesweep_1.0.0_all.deb) | 17 KB |
+| **Fedora/RHEL** | [`bytesweep-1.0.0-1.noarch.rpm`](./bytesweep-1.0.0-1.noarch.rpm) | 26 KB |
+| **AppImage** | [`ByteSweep-1.0.0-x86_64.AppImage`](./ByteSweep-1.0.0-x86_64.AppImage) | 6.5 MB |
+| **Arch Linux** | [`PKGBUILD`](./PKGBUILD) + [`bytesweep.install`](./bytesweep.install) | Source |
+| **Snap** | [`snap/snapcraft.yaml`](./snap/snapcraft.yaml) | Source |
 
 ### Debian / Ubuntu / Linux Mint / Pop!_OS
 
 ```bash
-# Download and install the .deb package
-sudo dpkg -i bytesweep_1.0.0_all.deb
-
-# Or build from source
-chmod +x build-deb.sh
-./build-deb.sh
+wget https://github.com/iu2vwk-ita/swiftserver/raw/main/bytesweep_1.0.0_all.deb
 sudo dpkg -i bytesweep_1.0.0_all.deb
 ```
 
 ### Fedora / RHEL / CentOS / Rocky Linux
 
 ```bash
-# Install the RPM package
+wget https://github.com/iu2vwk-ita/swiftserver/raw/main/bytesweep-1.0.0-1.noarch.rpm
 sudo rpm -i bytesweep-1.0.0-1.noarch.rpm
-
-# Or build from source
-chmod +x build-rpm.sh
-./build-rpm.sh
-sudo rpm -i bytesweep-1.0.0-1.*.rpm
 ```
 
-### Arch Linux / Manjaro / EndeavourOS
+### AppImage (any Linux)
 
 ```bash
-# Build and install with makepkg
-makepkg -si
-
-# Or use the helper script
-chmod +x build-arch.sh
-./build-arch.sh
-```
-
-### AppImage (Any Linux distribution)
-
-```bash
+wget https://github.com/iu2vwk-ita/swiftserver/raw/main/ByteSweep-1.0.0-x86_64.AppImage
 chmod +x ByteSweep-1.0.0-x86_64.AppImage
 ./ByteSweep-1.0.0-x86_64.AppImage
-
-# Dashboard available at http://0.0.0.0:5000
 ```
 
-### Snap (Any Linux with snapd)
+### Arch Linux
 
 ```bash
-# Build and install the snap
-snapcraft
-sudo snap install bytesweep_*.snap --dangerous --classic
-```
-
-### Universal Install Script (Any Linux)
-
-```bash
-# Clone the repository
 git clone https://github.com/iu2vwk-ita/swiftserver.git
 cd swiftserver
-
-# Run the installer
-chmod +x install.sh
-sudo ./install.sh
-
-# Or with auto-cleanup enabled
-sudo ./install.sh --with-auto-cleanup
+makepkg -si
 ```
 
-The universal installer automatically detects your distribution and installs all dependencies.
+### Universal script (any Linux)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/iu2vwk-ita/swiftserver/main/install.sh | sudo bash
+```
 
 ---
 

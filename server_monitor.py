@@ -9,11 +9,18 @@ import threading
 import os
 import shutil
 import subprocess
+import select
+import pty
+import fcntl
+import termios
+import struct
 from flask import Flask, jsonify, request
+from flask_sock import Sock
 from datetime import datetime
 import cleanup
 
 app = Flask(__name__)
+sock = Sock(app)
 
 ALLOWED_ROOTS = ["/", "/home", "/opt", "/var", "/tmp"]
 
@@ -284,6 +291,66 @@ def files_delete():
         return jsonify({"success": True, "path": path})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+# ── Web Terminal (WebSocket PTY) ──
+
+@sock.route('/ws/terminal')
+def terminal_ws(ws):
+    child_pid, fd = pty.fork()
+    if child_pid == 0:
+        os.environ['TERM'] = 'xterm-256color'
+        os.environ['HOME'] = os.path.expanduser('~')
+        os.execve('/bin/bash', ['/bin/bash'], os.environ)
+    else:
+        flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+        def read_pty():
+            while True:
+                try:
+                    r, _, _ = select.select([fd], [], [], 0.05)
+                    if r:
+                        data = os.read(fd, 8192)
+                        if not data:
+                            break
+                        ws.send(data)
+                except Exception:
+                    break
+
+        t = threading.Thread(target=read_pty, daemon=True)
+        t.start()
+
+        while True:
+            try:
+                data = ws.receive()
+                if data is None:
+                    break
+                if isinstance(data, str):
+                    data = data.encode()
+                os.write(fd, data)
+            except Exception:
+                break
+
+        os.close(fd)
+        try:
+            os.waitpid(child_pid, 0)
+        except Exception:
+            pass
+
+@sock.route('/ws/terminal/resize')
+def terminal_resize_ws(ws):
+    while True:
+        try:
+            data = ws.receive()
+            if data is None:
+                break
+            msg = json.loads(data)
+            cols = msg.get('cols', 80)
+            rows = msg.get('rows', 24)
+            winsize = struct.pack('HHHH', rows, cols, 0, 0)
+            fcntl.ioctl(pty.STDOUT_FILENO, termios.TIOCSWINSZ, winsize)
+        except Exception:
+            break
 
 if __name__ == "__main__":
     from config import SERVER_PORT, SERVER_HOST, UPDATE_INTERVAL, ENABLE_TEMPS, LOG_LEVEL
