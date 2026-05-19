@@ -19,7 +19,8 @@ A lightweight, real-time Linux server monitoring dashboard with integrated disk 
 ## Screenshots
 
 <img width="1181" height="819" alt="Screenshot 2026-05-19 014518" src="https://github.com/user-attachments/assets/3ee8df11-ac9a-42ee-8bd9-b7460ef5bfba" />
-<img width="1171" height="931" alt="Screenshot 2026-05-19 014534" src="https://github.com/user-attachments/assets/f712c341-2444-46a6-949f-93edac867253" />
+
+<img width="952" height="893" alt="Screenshot 2026-05-19 095842" src="https://github.com/user-attachments/assets/21185f37-33d4-4063-8346-ed2f9dec3952" />
 
 ## Installation
 
