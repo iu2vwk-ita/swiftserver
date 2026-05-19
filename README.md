@@ -10,8 +10,10 @@ A lightweight, real-time Linux server monitoring dashboard with integrated disk 
 - **Network Details** -- Per-interface IP and MAC address discovery
 - **Disk Visualization** -- Partition usage with color-coded progress bars
 - **One-Click Cleanup** -- Web UI to run maintenance cleaners (APT, logs, Docker, caches)
-- **Web Terminal** -- Full bash shell embedded in the dashboard (xterm.js + PTY)
+- **File Manager** -- Browse, navigate, and delete files/directories from the dashboard
+- **Web Terminal** -- Full bash shell embedded in the dashboard (xterm.js + PTY WebSocket)
 - **Auto-Cleanup Agent** -- Background timer that cleans automatically when disk exceeds 90%
+- **Multi-Distro Packages** -- Pre-built .deb, .rpm, AppImage + PKGBUILD and snapcraft.yaml
 - **Responsive Dark UI** -- Works on desktop, tablet, and mobile
 
 ## Screenshots
