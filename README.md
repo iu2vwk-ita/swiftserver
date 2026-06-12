@@ -81,6 +81,8 @@ Optional password protection for the entire dashboard, with PBKDF2-HMAC-SHA256 h
 ### Process Management
 Kill any process with one click from the Top Processes table. Kill endpoint is authenticated and prevents killing PID 1 (systemd) or the server itself.
 
+<img width="714" height="667" alt="Screenshot 2026-06-12 025554" src="https://github.com/user-attachments/assets/cbea85b1-74fe-4e4b-8c47-2b8668791ec0" />
+
 ## Security Architecture
 
 - **Password storage**: PBKDF2-HMAC-SHA256 (100,000 iterations) with 128-bit per-server random salt — never plaintext
