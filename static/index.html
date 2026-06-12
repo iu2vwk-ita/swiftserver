@@ -647,10 +647,16 @@
                     await checkAuth();
                     return null;
                 }
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                return r.json();
+                // Parse JSON even for error responses to get server error message
+                const body = await r.json().catch(function() { return null; });
+                if (!r.ok) {
+                    if (body && body.error) throw new Error(body.error);
+                    throw new Error('HTTP ' + r.status);
+                }
+                return body;
             } catch (e) {
-                if (e.name !== 'AbortError') console.error(url, e);
+                if (e.name === 'AbortError') return null;
+                console.error(url, e.message || e);
                 return null;
             }
         }
@@ -1227,14 +1233,15 @@
                 return;
             }
 
-            // Run actual scan
+            // Run actual scan with longer timeout
             btn.disabled = true;
             btn.textContent = 'Scanning (may take a while)...';
-            result.innerHTML = '<span class="spinner"></span> Running ClamAV scan...';
+            result.innerHTML = '<span class="spinner"></span> Running ClamAV scan (this can take several minutes)...';
 
             data = await fetchJSON(API + '/security/virus-scan', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
+                signal: AbortSignal.timeout(600000),
                 body: JSON.stringify({paths: null})
             });
             btn.disabled = false;
@@ -1302,18 +1309,23 @@
                 btn.disabled = true;
                 btn.textContent = '...';
             }
+            // Use longer timeout since kill can take a few seconds
             var data = await fetchJSON(API + '/process/kill', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
+                signal: AbortSignal.timeout(15000),
                 body: JSON.stringify({pid: pid})
             });
             if (data && data.success) {
                 if (btn) {
                     var row = btn.closest('tr');
                     if (row) row.style.opacity = '0.4';
+                    btn.disabled = true;
+                    btn.textContent = '\u2713';
                 }
             } else {
-                alert('Failed to kill process: ' + (data ? data.error : 'unknown error'));
+                var errMsg = data && data.error ? data.error : 'Could not connect to server';
+                alert('Failed to kill process: ' + errMsg);
                 if (btn) {
                     btn.disabled = false;
                     btn.textContent = '\u2715';

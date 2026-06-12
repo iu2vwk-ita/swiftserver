@@ -575,6 +575,7 @@ def cleanup_run():
 # ── Process Kill API ────────────────────────────────────────────
 
 @app.route("/api/process/kill", methods=["POST"])
+@auth_required
 def process_kill():
     data = request.get_json(silent=True) or {}
     pid = data.get("pid")
