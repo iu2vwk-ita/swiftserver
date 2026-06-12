@@ -169,6 +169,8 @@ def _scan_suspicious_binaries():
     scan_roots = ["/etc", "/tmp", "/var/tmp", "/dev/shm"]
     min_size = 10 * 1024 * 1024  # 10 MB
     SKIP_PREFIXES = ["/etc/alternatives/", "/etc/ssl/", "/etc/ca-certificates/"]
+    # File/dir patterns to skip (ClamAV temp, snap, etc.)
+    SKIP_PATTERNS = ["clamav-", "scantemp", "freshclam", ".temp.", "snap.", "systemd-private"]
 
     for root in scan_roots:
         if not os.path.exists(root):
@@ -181,6 +183,8 @@ def _scan_suspicious_binaries():
                     if os.path.islink(fpath):
                         continue
                     if any(fpath.startswith(p) for p in SKIP_PREFIXES):
+                        continue
+                    if any(p in fpath for p in SKIP_PATTERNS):
                         continue
                     try:
                         fsize = os.path.getsize(fpath)
