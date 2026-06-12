@@ -166,6 +166,7 @@ cp "$SCRIPT_DIR/config.py" "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/requirements.txt" "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/cleanup.py" "$INSTALL_DIR/"
 cp "$SCRIPT_DIR/auto_cleanup.py" "$INSTALL_DIR/"
+cp "$SCRIPT_DIR/security.py" "$INSTALL_DIR/"
 
 mkdir -p "$INSTALL_DIR/static"
 cp -r "$SCRIPT_DIR/static/"* "$INSTALL_DIR/static/" 2>/dev/null || true

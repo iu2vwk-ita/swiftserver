@@ -14,27 +14,233 @@ import pty
 import fcntl
 import termios
 import struct
-from flask import Flask, jsonify, request
+import uuid
+import hashlib
+import logging
+import functools
+from flask import Flask, jsonify, request, g
 from flask_sock import Sock
-from datetime import datetime
+from datetime import datetime, timedelta
+
 import cleanup
+import security
 
 app = Flask(__name__)
 sock = Sock(app)
 
+# ── Global state ────────────────────────────────────────────────
+
+_sessions = {}            # token -> {"created": datetime, "ip": str}
+_lock = threading.Lock()
+_runtime_password = None   # Runtime password (can be changed from panel)
+SETTINGS_FILE = "/opt/server-monitor/logs/settings.json"
+
 ALLOWED_ROOTS = ["/", "/home", "/opt", "/var", "/tmp"]
 
+
+# ── Runtime settings persistence ────────────────────────────────
+
+def _load_settings():
+    global _runtime_password
+    try:
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, "r") as f:
+                data = json.load(f)
+                _runtime_password = data.get("panel_password")
+                app.config['PANEL_PASSWORD'] = _runtime_password
+    except Exception:
+        pass
+
+
+def _save_settings(data):
+    global _runtime_password
+    try:
+        os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+        existing = {}
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, "r") as f:
+                existing = json.load(f)
+        existing.update(data)
+        with open(SETTINGS_FILE, "w") as f:
+            json.dump(existing, f)
+        if "panel_password" in data:
+            _runtime_password = data["panel_password"]
+            app.config['PANEL_PASSWORD'] = _runtime_password
+        return True
+    except Exception:
+        return False
+
+
+# ── Auth helpers ────────────────────────────────────────────────
+
+def _get_password():
+    """Get effective password: runtime > config file."""
+    if _runtime_password is not None:
+        return _runtime_password
+    return app.config.get('PANEL_PASSWORD')
+
+
+def _require_auth(f):
+    """Decorator: require auth only if PANEL_PASSWORD is set."""
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        if not _get_password():
+            return f(*args, **kwargs)
+        token = request.headers.get('X-Auth-Token') or request.cookies.get('byte_token')
+        if not token or token not in _sessions:
+            return jsonify({"error": "Authentication required"}), 401
+        s = _sessions[token]
+        if datetime.now() - s["created"] > timedelta(hours=app.config.get('SESSION_EXPIRY_HOURS', 4)):
+            with _lock:
+                _sessions.pop(token, None)
+            return jsonify({"error": "Session expired"}), 401
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def _check_auth():
+    """Check if auth is enabled and user is authenticated."""
+    if not _get_password():
+        return True
+    token = request.headers.get('X-Auth-Token') or request.cookies.get('byte_token')
+    if not token or token not in _sessions:
+        return False
+    s = _sessions[token]
+    if datetime.now() - s["created"] > timedelta(hours=app.config.get('SESSION_EXPIRY_HOURS', 4)):
+        with _lock:
+            _sessions.pop(token, None)
+        return False
+    return True
+
+
+# ── Access logging middleware ───────────────────────────────────
+
+@app.before_request
+def _access_log_start():
+    g._req_start = time.time()
+
+
+@app.after_request
+def _access_log_end(response):
+    if not app.config.get('ACCESS_LOG'):
+        return response
+
+    duration = (time.time() - g.get('_req_start', 0)) * 1000
+    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    method = request.method
+    path = request.path
+    status = response.status_code
+    user_agent = request.headers.get('User-Agent', '-')[:200]
+    log_line = f'{ts} {ip} "{method} {path}" {status} {duration:.1f}ms "{user_agent}"'
+
+    log_file = app.config.get('ACCESS_LOG_FILE', '/tmp/bytesweep-access.log')
+    try:
+        log_dir = os.path.dirname(log_file)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
+        with open(log_file, 'a') as f:
+            f.write(log_line + '\n')
+    except Exception:
+        pass
+
+    return response
+
+
+# ── Auth API ────────────────────────────────────────────────────
+
+@app.route("/api/auth/status")
+def auth_status():
+    """Return auth configuration status."""
+    return jsonify({
+        "auth_enabled": bool(_get_password()),
+        "authenticated": _check_auth()
+    })
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    password = _get_password()
+    if not password:
+        return jsonify({"success": True, "token": None, "message": "Authentication not configured"})
+
+    data = request.get_json(silent=True) or {}
+    pw = data.get("password", "")
+
+    # Constant-time comparison
+    if hashlib.sha256(password.encode()).hexdigest() != hashlib.sha256(pw.encode()).hexdigest():
+        return jsonify({"success": False, "error": "Invalid password"}), 401
+
+    token = str(uuid.uuid4())
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    with _lock:
+        _sessions[token] = {"created": datetime.now(), "ip": ip}
+
+    resp = jsonify({"success": True, "token": token})
+    resp.set_cookie("byte_token", token, httponly=True, samesite='Strict')
+    return resp
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def auth_logout():
+    token = request.headers.get('X-Auth-Token') or request.cookies.get('byte_token')
+    if token:
+        with _lock:
+            _sessions.pop(token, None)
+    resp = jsonify({"success": True})
+    resp.delete_cookie("byte_token")
+    return resp
+
+
+# ── Settings API ─────────────────────────────────────────────────
+
+@app.route("/api/settings")
+def settings_get():
+    """Return current panel settings."""
+    pw = _get_password()
+    return jsonify({
+        "password_enabled": bool(pw),
+        "password_set": bool(pw),
+    })
+
+
+@app.route("/api/settings", methods=["POST"])
+def settings_post():
+    """Update panel settings (password, etc)."""
+    data = request.get_json(silent=True) or {}
+    action = data.get("action", "")
+
+    if action == "set_password":
+        new_pw = data.get("password", "")
+        if not new_pw:
+            return jsonify({"success": False, "error": "Password cannot be empty"}), 400
+        ok = _save_settings({"panel_password": new_pw})
+        # Invalidate all existing sessions when password changes
+        with _lock:
+            _sessions.clear()
+        return jsonify({"success": ok, "message": "Password set. All sessions invalidated."})
+
+    elif action == "disable_password":
+        ok = _save_settings({"panel_password": None})
+        with _lock:
+            _sessions.clear()
+        return jsonify({"success": ok, "message": "Password protection disabled."})
+
+    return jsonify({"success": False, "error": f"Unknown action: {action}"}), 400
+
+
+# ── Utility functions ───────────────────────────────────────────
+
 def _safe_path(path):
-    """Normalize and validate path to prevent traversal attacks."""
     if not path:
         path = "/"
     path = os.path.abspath(os.path.normpath(path))
-    # Allow any absolute path for local admin use, but block common sensitive paths
     blocked = ["/proc", "/sys", "/dev", "/run", "/boot"]
     for b in blocked:
         if path.startswith(b):
             return "/"
     return path
+
 
 def _size_str(size):
     if size >= 1073741824:
@@ -45,8 +251,8 @@ def _size_str(size):
         return f"{size / 1024:.1f} KB"
     return f"{size} B"
 
+
 def _list_dir(path):
-    """List directory contents with sizes."""
     path = _safe_path(path)
     items = []
     try:
@@ -55,7 +261,6 @@ def _list_dir(path):
                 stat = entry.stat(follow_symlinks=False)
                 mtime = stat.st_mtime
                 if entry.is_dir(follow_symlinks=False):
-                    # Get dir size via du for speed
                     try:
                         r = subprocess.run(["du", "-sb", entry.path], capture_output=True, text=True, timeout=5)
                         size = int(r.stdout.split()[0]) if r.returncode == 0 else 0
@@ -80,9 +285,9 @@ def _list_dir(path):
                 continue
     except (OSError, PermissionError):
         pass
-    # Sort: dirs first, then alphabetically
     items.sort(key=lambda x: (0 if x["type"] == "dir" else 1, x["name"].lower()))
     return items
+
 
 def _get_dir_size(path):
     try:
@@ -93,11 +298,14 @@ def _get_dir_size(path):
         pass
     return 0
 
+
 def get_cpu():
     return psutil.cpu_percent(interval=1, percpu=False)
 
+
 def get_cpu_cores():
     return psutil.cpu_percent(interval=1, percpu=True)
+
 
 def get_ram():
     mem = psutil.virtual_memory()
@@ -107,6 +315,7 @@ def get_ram():
         "free": mem.free,
         "percent": mem.percent
     }
+
 
 def get_disk():
     partitions = psutil.disk_partitions()
@@ -127,6 +336,7 @@ def get_disk():
             pass
     return disks
 
+
 def get_network():
     net = psutil.net_io_counters()
     return {
@@ -139,6 +349,7 @@ def get_network():
         "dropin": net.dropin,
         "dropout": net.dropout
     }
+
 
 def get_network_ifaces():
     ifaces = {}
@@ -158,9 +369,11 @@ def get_network_ifaces():
                         ifaces[iface]["mac"] = addr['addr']
     return ifaces
 
+
 def get_load():
     load = psutil.getloadavg()
     return {"1min": load[0], "5min": load[1], "15min": load[2]}
+
 
 def get_top_processes():
     processes = []
@@ -175,7 +388,8 @@ def get_top_processes():
         except:
             pass
     processes.sort(key=lambda x: x.get('cpu', 0), reverse=True)
-    return processes[:10]
+    return processes[:15]
+
 
 def get_temps():
     temps = []
@@ -192,6 +406,7 @@ def get_temps():
         pass
     return temps
 
+
 def get_uptime():
     boot_time = datetime.fromtimestamp(psutil.boot_time())
     now = datetime.now()
@@ -201,9 +416,15 @@ def get_uptime():
     minutes, seconds = divmod(remainder, 60)
     return {"days": days, "hours": hours, "minutes": minutes, "seconds": seconds}
 
+
+# ── Page Routes ─────────────────────────────────────────────────
+
 @app.route("/")
 def index():
     return app.send_static_file("index.html")
+
+
+# ── System API ──────────────────────────────────────────────────
 
 @app.route("/api/system")
 def system_info():
@@ -218,6 +439,7 @@ def system_info():
         "uptime": get_uptime(),
         "load": get_load()
     })
+
 
 @app.route("/api/metrics")
 def metrics():
@@ -234,25 +456,31 @@ def metrics():
         "top_processes": get_top_processes()
     })
 
+
 @app.route("/api/cpu")
 def cpu_data():
     return jsonify({"cpu": get_cpu(), "cores": get_cpu_cores(), "load": get_load()})
+
 
 @app.route("/api/ram")
 def ram_data():
     return jsonify(get_ram())
 
+
 @app.route("/api/disk")
 def disk_data():
     return jsonify(get_disk())
+
 
 @app.route("/api/network")
 def network_data():
     return jsonify(get_network())
 
+
 @app.route("/api/cleanup/status")
 def cleanup_status():
     return jsonify({"items": cleanup.get_status()})
+
 
 @app.route("/api/cleanup/run", methods=["POST"])
 def cleanup_run():
@@ -261,7 +489,103 @@ def cleanup_run():
     result = cleanup.run_cleanup(items)
     return jsonify(result)
 
-# ── File Manager Endpoints ──
+
+# ── Process Kill API ────────────────────────────────────────────
+
+@app.route("/api/process/kill", methods=["POST"])
+def process_kill():
+    data = request.get_json(silent=True) or {}
+    pid = data.get("pid")
+    if not pid:
+        return jsonify({"success": False, "error": "PID required"}), 400
+    try:
+        pid = int(pid)
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid PID"}), 400
+    result = security.kill_process(pid)
+    status = 200 if result["success"] else 400
+    return jsonify(result), status
+
+
+# ── Security API ────────────────────────────────────────────────
+
+@app.route("/api/security/clamav-status")
+def clamav_status():
+    """Check if ClamAV is installed and available."""
+    import shutil as _sh
+    has_clamav = bool(_sh.which("clamscan") or _sh.which("clamdscan"))
+    return jsonify({"installed": has_clamav})
+
+
+@app.route("/api/security/virus-scan", methods=["POST"])
+def virus_scan():
+    paths = app.config.get('VIRUS_SCAN_PATHS', ["/tmp", "/var/tmp", "/home"])
+    timeout = app.config.get('VIRUS_SCAN_TIMEOUT', 300)
+    data = request.get_json(silent=True) or {}
+    if "paths" in data:
+        paths = data["paths"]
+    if "timeout" in data:
+        timeout = data["timeout"]
+    result = security.scan_virus(paths, timeout=timeout)
+    return jsonify(result)
+
+
+@app.route("/api/security/install-clamav", methods=["POST"])
+def install_clamav():
+    """Install ClamAV on the system."""
+    import shutil as _sh
+    if _sh.which("clamscan") or _sh.which("clamdscan"):
+        return jsonify({"success": True, "already_installed": True, "message": "ClamAV is already installed"})
+
+    try:
+        r = subprocess.run(
+            ["apt-get", "update", "-qq"],
+            capture_output=True, text=True, timeout=60
+        )
+        if r.returncode != 0:
+            return jsonify({"success": False, "error": f"apt update failed: {r.stderr[:200]}"}), 500
+
+        r = subprocess.run(
+            ["apt-get", "install", "-y", "-qq", "clamav", "clamav-daemon"],
+            capture_output=True, text=True, timeout=300
+        )
+        if r.returncode != 0:
+            return jsonify({"success": False, "error": f"apt install failed: {r.stderr[:200]}"}), 500
+
+        # Update virus definitions
+        subprocess.run(["freshclam", "--quiet"], capture_output=True, timeout=120)
+
+        installed = bool(_sh.which("clamscan") or _sh.which("clamdscan"))
+        return jsonify({"success": installed, "message": "ClamAV installed successfully" if installed else "Installation completed but binary not found"})
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "error": "Installation timed out"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/security/mine-detect")
+def mine_detect():
+    cpu_threshold = app.config.get('MINING_CPU_THRESHOLD', 50)
+    patterns = app.config.get('MINING_PATTERNS', None)
+    result = security.detect_mining(cpu_threshold=cpu_threshold, known_patterns=patterns)
+    return jsonify(result)
+
+
+@app.route("/api/security/ports")
+def security_ports():
+    threshold = app.config.get('RECENT_PORT_THRESHOLD', 300)
+    result = security.get_open_ports(recent_threshold=threshold)
+    return jsonify(result)
+
+
+@app.route("/api/security/forensic-scan")
+def forensic_scan():
+    """Full forensic security scan: hidden dirs, backdoors, rootkits, C2, persistence."""
+    result = security.deep_forensic_scan()
+    return jsonify(result)
+
+
+# ── File Manager ────────────────────────────────────────────────
 
 @app.route("/api/files/list")
 def files_list():
@@ -275,6 +599,7 @@ def files_list():
         "total_size": total_size,
         "total_size_str": _size_str(total_size)
     })
+
 
 @app.route("/api/files/delete", methods=["POST"])
 def files_delete():
@@ -292,7 +617,8 @@ def files_delete():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-# ── Web Terminal (WebSocket PTY) ──
+
+# ── Web Terminal ────────────────────────────────────────────────
 
 @sock.route('/ws/terminal')
 def terminal_ws(ws):
@@ -337,6 +663,7 @@ def terminal_ws(ws):
         except Exception:
             pass
 
+
 @sock.route('/ws/terminal/resize')
 def terminal_resize_ws(ws):
     while True:
@@ -352,14 +679,40 @@ def terminal_resize_ws(ws):
         except Exception:
             break
 
+
+# ── Main ────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
-    from config import SERVER_PORT, SERVER_HOST, UPDATE_INTERVAL, ENABLE_TEMPS, LOG_LEVEL
-    import logging
+    from config import (SERVER_PORT, SERVER_HOST, UPDATE_INTERVAL, ENABLE_TEMPS,
+                        LOG_LEVEL, ACCESS_LOG, ACCESS_LOG_FILE, PANEL_PASSWORD,
+                        SESSION_EXPIRY_HOURS, VIRUS_SCAN_PATHS, VIRUS_SCAN_TIMEOUT,
+                        MINING_CPU_THRESHOLD, MINING_PATTERNS, RECENT_PORT_THRESHOLD,
+                        LOG_DIR)
 
     log_level = getattr(logging, LOG_LEVEL.upper(), logging.INFO)
-    logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 
     app.config['ENABLE_TEMPS'] = ENABLE_TEMPS
+    app.config['ACCESS_LOG'] = ACCESS_LOG
+    app.config['ACCESS_LOG_FILE'] = ACCESS_LOG_FILE or "/opt/server-monitor/logs/access.log"
+    app.config['PANEL_PASSWORD'] = PANEL_PASSWORD
+    app.config['SESSION_EXPIRY_HOURS'] = SESSION_EXPIRY_HOURS
+    app.config['VIRUS_SCAN_PATHS'] = VIRUS_SCAN_PATHS
+    app.config['VIRUS_SCAN_TIMEOUT'] = VIRUS_SCAN_TIMEOUT
+    app.config['MINING_CPU_THRESHOLD'] = MINING_CPU_THRESHOLD
+    app.config['MINING_PATTERNS'] = MINING_PATTERNS
+    app.config['RECENT_PORT_THRESHOLD'] = RECENT_PORT_THRESHOLD
+
+    os.makedirs(LOG_DIR or "/opt/server-monitor/logs", exist_ok=True)
+
+    # Load runtime settings (overrides config.py for panel_password)
+    _load_settings()
+
+    pw = _get_password()
+    if pw:
+        logging.info("Panel password protection ENABLED")
+    else:
+        logging.info("Panel password protection DISABLED (use panel Settings or set PANEL_PASSWORD in config.py)")
 
     logging.info(f"Starting Server Monitor on {SERVER_HOST}:{SERVER_PORT}")
     app.run(host=SERVER_HOST, port=SERVER_PORT, debug=False, threaded=True)

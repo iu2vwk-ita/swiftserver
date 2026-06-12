@@ -6,13 +6,16 @@ A lightweight, real-time Linux server monitoring dashboard with integrated disk 
 
 - **Real-time Metrics** -- Live CPU, memory, disk, and network charts (Chart.js)
 - **System Overview** -- Uptime, load average, CPU core count, temperature sensors
-- **Top Processes** -- Auto-updating table of the most CPU-intensive processes
+- **Top Processes** -- Auto-updating table with one-click process kill
 - **Network Details** -- Per-interface IP and MAC address discovery
 - **Disk Visualization** -- Partition usage with color-coded progress bars
 - **One-Click Cleanup** -- Web UI to run maintenance cleaners (APT, logs, Docker, caches)
 - **File Manager** -- Browse, navigate, and delete files/directories from the dashboard
 - **Web Terminal** -- Full bash shell embedded in the dashboard (xterm.js + PTY WebSocket)
 - **Auto-Cleanup Agent** -- Background timer that cleans automatically when disk exceeds 90%
+- **Security Panel** -- Forensic scan (hidden dirs, backdoors, rootkits, C2 agents, suspicious cron/systemd, reverse shells), mining detection, open ports monitoring, virus scanning with ClamAV (auto-install from panel)
+- **Panel Authentication** -- Optional password protection, configurable from the web panel (no SSH needed)
+- **Access Logging** -- HTTP request logging with timestamps and IPs
 - **Multi-Distro Packages** -- Pre-built .deb, .rpm, AppImage + PKGBUILD and snapcraft.yaml
 - **Responsive Dark UI** -- Works on desktop, tablet, and mobile
 
@@ -148,15 +151,27 @@ LOG_LEVEL = "INFO"          # Logging verbosity
 |----------|--------|-------------|
 | `/` | GET | Dashboard UI (HTML) |
 | `/api/system` | GET | Hostname, platform, uptime, CPU count, memory total |
-| `/api/metrics` | GET | Full real-time metrics snapshot |
+| `/api/metrics` | GET | Full real-time metrics snapshot (CPU, RAM, disk, net, temps, processes) |
 | `/api/cpu` | GET | CPU usage, per-core breakdown, load average |
 | `/api/ram` | GET | Memory usage statistics |
 | `/api/disk` | GET | Disk partition usage |
 | `/api/network` | GET | Network I/O counters |
-| `/api/cleanup/status` | GET | List available cleaners and estimated savings |
-| `/api/cleanup/run` | POST | Run selected cleaners (JSON body: `{"items": ["apt","journal"]}`) |
+| `/api/cleanup/status` | GET | List available cleaners and descriptions |
+| `/api/cleanup/run` | POST | Run selected cleaners (`{"items": ["apt","journal"]}`) |
 | `/api/files/list` | GET | List directory contents (`?path=/opt`) |
 | `/api/files/delete` | POST | Delete file or directory (`{"path": "/opt/old-folder"}`) |
+| `/api/auth/status` | GET | Authentication status (enabled/authenticated) |
+| `/api/auth/login` | POST | Login with password (`{"password": "..."}`) |
+| `/api/auth/logout` | POST | Logout and invalidate session |
+| `/api/settings` | GET | Get current panel settings |
+| `/api/settings` | POST | Update settings (`{"action":"set_password","password":"..."}` / `{"action":"disable_password"}`) |
+| `/api/process/kill` | POST | Kill a process by PID (`{"pid": 1234}`) |
+| `/api/security/ports` | GET | Open ports, established connections, suspicious ports |
+| `/api/security/mine-detect` | GET | Scan processes for crypto mining activity |
+| `/api/security/forensic-scan` | GET | Full forensic scan (hidden dirs, backdoors, rootkits, C2, cron, systemd) |
+| `/api/security/clamav-status` | GET | Check if ClamAV is installed |
+| `/api/security/install-clamav` | POST | Install ClamAV automatically (`apt install clamav`) |
+| `/api/security/virus-scan` | POST | Run ClamAV virus scan on configured paths |
 
 ## Cleaners
 
@@ -194,11 +209,12 @@ tail -f /opt/server-monitor/logs/cleanup.log
 
 ```
 swiftserver/
-├── server_monitor.py    # Flask application + API endpoints
+├── server_monitor.py    # Flask application + API endpoints + auth + access logging
+├── security.py          # Security engine (forensics, mining, ports, virus scan, process kill)
 ├── cleanup.py           # Cleanup engine (10 maintenance operations)
 ├── auto_cleanup.py      # Background agent for automated cleanup
-├── config.py            # Server and logging configuration
-├── requirements.txt     # Python dependencies
+├── config.py            # Server, logging, auth, and security configuration
+├── requirements.txt     # Python dependencies (Flask, psutil, netifaces, flask-sock)
 ├── install.sh           # Universal install script (all distros)
 │
 ├── build-deb.sh         # Debian/Ubuntu package builder
@@ -222,7 +238,7 @@ swiftserver/
 │   └── snapcraft.yaml
 │
 └── static/
-    └── index.html       # Dashboard frontend (vanilla JS + Chart.js)
+    └── index.html       # Dashboard frontend (vanilla JS + Chart.js + xterm.js)
 ```
 
 ## Requirements

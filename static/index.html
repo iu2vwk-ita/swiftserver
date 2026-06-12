@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Server Monitor</title>
+    <title>ByteSweep - Server Monitor</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
     <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
@@ -22,6 +22,7 @@
             --warning: #f59e0b;
             --danger: #ef4444;
             --border: rgba(255,255,255,0.08);
+            --radius: 12px;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -43,6 +44,8 @@
             margin-bottom: 32px;
             padding-bottom: 24px;
             border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            gap: 12px;
         }
         .header h1 {
             font-size: 28px;
@@ -55,6 +58,7 @@
             display: flex;
             gap: 24px;
             align-items: center;
+            flex-wrap: wrap;
         }
         .server-name {
             font-size: 14px;
@@ -81,6 +85,27 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+        .btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn:hover { border-color: var(--accent); background: var(--bg-secondary); }
+        .btn-danger { color: var(--danger); border-color: var(--danger); }
+        .btn-danger:hover { background: var(--danger); color: white; }
+        .btn-success { color: var(--success); border-color: var(--success); }
+        .btn-success:hover { background: var(--success); color: white; }
+        .btn-accent { background: var(--accent); color: white; border: none; }
+        .btn-accent:hover { opacity: 0.9; }
+        .btn-sm { padding: 4px 10px; font-size: 11px; border-radius: 6px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+
         .stats-bar {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -90,7 +115,7 @@
         .stat-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: var(--radius);
             padding: 20px;
             transition: all 0.3s ease;
             position: relative;
@@ -104,9 +129,7 @@
         .stat-card::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
+            top: 0; left: 0; right: 0;
             height: 3px;
             background: linear-gradient(90deg, var(--accent), transparent);
         }
@@ -128,8 +151,7 @@
             color: var(--text-secondary);
             margin-top: 4px;
         }
-        .stat-detail.warning { color: var(--warning); }
-        .stat-detail.danger { color: var(--danger); }
+
         .charts-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -139,7 +161,7 @@
         .chart-card {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: var(--radius);
             padding: 24px;
         }
         .chart-card h3 {
@@ -158,10 +180,11 @@
             gap: 24px;
             margin-bottom: 32px;
         }
+
         .info-section {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: var(--radius);
             padding: 24px;
             margin-bottom: 24px;
         }
@@ -171,6 +194,7 @@
             margin-bottom: 16px;
             color: var(--text-primary);
         }
+
         .disk-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -181,35 +205,12 @@
             border-radius: 8px;
             padding: 16px;
         }
-        .disk-name {
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 6px;
-            color: var(--text-primary);
-        }
-        .disk-mount {
-            font-size: 11px;
-            color: var(--text-secondary);
-            margin-bottom: 10px;
-        }
-        .disk-bar {
-            height: 8px;
-            background: var(--bg-primary);
-            border-radius: 4px;
-            overflow: hidden;
-            margin-bottom: 8px;
-        }
-        .disk-bar-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.5s ease;
-        }
-        .disk-info {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            color: var(--text-secondary);
-        }
+        .disk-name { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+        .disk-mount { font-size: 11px; color: var(--text-secondary); margin-bottom: 10px; }
+        .disk-bar { height: 8px; background: var(--bg-primary); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+        .disk-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+        .disk-info { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary); }
+
         .network-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -220,16 +221,9 @@
             border-radius: 8px;
             padding: 16px;
         }
-        .network-name {
-            font-weight: 600;
-            font-size: 13px;
-            margin-bottom: 6px;
-        }
-        .network-ip {
-            font-size: 11px;
-            color: var(--text-secondary);
-            margin-bottom: 4px;
-        }
+        .network-name { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+        .network-ip { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+
         .temps-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -241,18 +235,12 @@
             padding: 16px;
             text-align: center;
         }
-        .temp-label {
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-bottom: 4px;
-        }
-        .temp-value {
-            font-size: 24px;
-            font-weight: 700;
-        }
+        .temp-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+        .temp-value { font-size: 24px; font-weight: 700; }
         .temp-value.ok { color: var(--success); }
         .temp-value.warn { color: var(--warning); }
         .temp-value.hot { color: var(--danger); }
+
         .processes-table {
             width: 100%;
             border-collapse: collapse;
@@ -271,91 +259,147 @@
         }
         .processes-table tr:hover { background: var(--bg-secondary); }
         .processes-table td { font-size: 13px; font-variant-numeric: tabular-nums; }
-        .loading {
+        .kill-btn {
+            background: transparent;
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            opacity: 0;
+            transition: all 0.2s;
+        }
+        .processes-table tr:hover .kill-btn { opacity: 1; }
+        .kill-btn:hover { background: var(--danger); color: white; }
+
+        /* ── Login page ── */
+        .login-wrapper {
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 100vh;
-            font-size: 18px;
-            color: var(--text-secondary);
+            min-height: 100vh;
         }
-        @media (max-width: 768px) {
-            .dashboard { padding: 12px; }
-            .header { flex-direction: column; gap: 12px; }
-            .header h1 { font-size: 20px; }
-            .charts-grid { grid-template-columns: 1fr; gap: 14px; margin-bottom: 20px; }
-            .charts-row { grid-template-columns: 1fr; gap: 14px; margin-bottom: 20px; }
-            .chart-container { height: 140px; }
-            .chart-card { padding: 18px; }
-            .chart-card h3 { font-size: 13px; margin-bottom: 10px; }
-            .stat-value { font-size: 24px; }
-            .stat-label { font-size: 10px; }
-            .stat-card { padding: 14px; }
-            .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-            .info-section { padding: 18px; margin-bottom: 16px; }
-            .info-section h3 { font-size: 14px; margin-bottom: 10px; }
-            .disk-grid { grid-template-columns: 1fr; gap: 10px; }
-            .temps-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-            .cleanup-grid { grid-template-columns: 1fr; gap: 8px; }
-            .processes-table { display: block; overflow-x: auto; white-space: nowrap; }
-            .processes-table th, .processes-table td { padding: 8px 10px; font-size: 11px; }
-            .file-toolbar { gap: 4px; }
-            .file-toolbar input { min-width: 80px; font-size: 12px; flex: 2; }
-            .file-toolbar button { font-size: 11px; padding: 5px 8px; }
-            .file-list { max-height: 300px; }
-            .file-item { font-size: 12px; padding: 6px 8px; gap: 6px; }
-            .file-item .size, .file-item .date { font-size: 10px; min-width: 45px; }
-            .file-manager { padding: 14px; }
-            .cleanup-panel { padding: 14px; }
-            .footer { font-size: 11px; padding: 14px 0 6px; }
-            .header-info { gap: 12px; flex-wrap: wrap; }
-        }
-        @media (max-width: 400px) {
-            .dashboard { padding: 8px; }
-            .header h1 { font-size: 17px; }
-            .stats-bar { grid-template-columns: 1fr 1fr; gap: 6px; }
-            .stat-value { font-size: 18px; }
-            .stat-card { padding: 10px; border-radius: 8px; }
-            .stat-label { font-size: 9px; letter-spacing: 0; }
-            .stat-detail { font-size: 10px; }
-            .chart-container { height: 110px; }
-            .chart-card { padding: 12px; border-radius: 8px; }
-            .chart-card h3 { font-size: 11px; }
-            .info-section { padding: 12px; border-radius: 8px; }
-            .temps-grid { grid-template-columns: 1fr; }
-            .file-toolbar input { min-width: 60px; font-size: 11px; padding: 4px 6px; }
-            .file-toolbar button { font-size: 10px; padding: 4px 6px; }
-            .file-item { font-size: 11px; padding: 5px 6px; gap: 4px; }
-            .file-item .size, .file-item .date { display: none; }
-            .file-manager { padding: 10px; }
-            .cleanup-panel { padding: 10px; }
-        }
-
-        /* ── Cleanup UI ── */
-        .cleanup-btn {
+        .login-box {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            color: var(--text-primary);
-            padding: 10px 18px;
+            border-radius: var(--radius);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-box h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--accent), #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .login-box p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+        .login-box input {
+            width: 100%;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
             border-radius: 8px;
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+        .login-box input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+        .login-box button {
+            width: 100%;
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .login-box button:hover { opacity: 0.9; }
+        .login-error {
+            color: var(--danger);
+            font-size: 13px;
+            margin-top: 12px;
+            display: none;
+        }
+        .login-error.show { display: block; }
+
+        /* ── Security Panel ── */
+        .security-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 16px;
+        }
+        .security-tab {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 8px 16px;
+            border-radius: 8px 8px 0 0;
             cursor: pointer;
             font-size: 13px;
-            font-weight: 500;
             transition: all 0.2s;
         }
-        .cleanup-btn:hover {
-            border-color: var(--accent);
+        .security-tab.active {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border-bottom-color: transparent;
+        }
+        .security-tab:hover { color: var(--text-primary); }
+        .security-tab-content { display: none; }
+        .security-tab-content.active { display: block; }
+
+        .scan-result {
+            margin-top: 12px;
+            padding: 12px;
             background: var(--bg-secondary);
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
         }
-        .cleanup-btn.running {
-            border-color: var(--warning);
-            pointer-events: none;
-            opacity: 0.7;
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
         }
+
+        .port-list {
+            display: grid;
+            gap: 6px;
+        }
+        .port-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-secondary);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+        .port-entry .port { color: var(--accent); font-weight: 600; }
+        .port-entry .addr { color: var(--text-secondary); }
+
+        /* ── Cleanup ── */
         .cleanup-panel {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: var(--radius);
             padding: 24px;
             margin-bottom: 24px;
         }
@@ -384,19 +428,7 @@
         .cleanup-item:hover { border-color: var(--accent); }
         .cleanup-item input { accent-color: var(--accent); }
         .cleanup-item .desc { color: var(--text-secondary); font-size: 11px; }
-        .cleanup-run {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 10px 24px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-        .cleanup-run:hover { opacity: 0.9; }
-        .cleanup-run:disabled { opacity: 0.5; cursor: not-allowed; }
+
         .cleanup-result {
             margin-top: 12px;
             padding: 12px;
@@ -407,6 +439,7 @@
         }
         .cleanup-result.success { display: block; border-left: 3px solid var(--success); }
         .cleanup-result.error { display: block; border-left: 3px solid var(--danger); }
+
         .disk-alert {
             background: var(--danger);
             color: white;
@@ -422,7 +455,7 @@
         .file-manager {
             background: var(--bg-card);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: var(--radius);
             padding: 20px;
             margin-bottom: 24px;
         }
@@ -449,19 +482,6 @@
             flex: 1;
             min-width: 200px;
         }
-        .file-toolbar button {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            color: var(--text-primary);
-            padding: 6px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s;
-        }
-        .file-toolbar button:hover { border-color: var(--accent); }
-        .file-toolbar .btn-danger { color: var(--danger); }
-        .file-toolbar .btn-danger:hover { background: var(--danger); color: white; }
         .file-list {
             max-height: 400px;
             overflow-y: auto;
@@ -503,38 +523,12 @@
             color: var(--text-secondary);
             font-size: 13px;
         }
-        .footer {
-            text-align: center;
-            padding: 20px 0 8px;
-            color: var(--text-secondary);
-            font-size: 12px;
-            border-top: 1px solid var(--border);
-            margin-top: 24px;
-        }
-        .footer a {
-            color: var(--accent);
-            text-decoration: none;
-        }
-        .footer a:hover { text-decoration: underline; }
 
         /* ── Terminal ── */
-        .terminal-btn {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            color: var(--text-primary);
-            padding: 10px 18px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-        .terminal-btn:hover { border-color: var(--success); background: var(--bg-secondary); }
-        .terminal-btn.active { border-color: var(--success); background: rgba(16,185,129,0.15); }
         .terminal-panel {
             background: #0a0a0a;
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: var(--radius);
             margin-bottom: 24px;
             overflow: hidden;
         }
@@ -560,11 +554,67 @@
             padding: 4px;
         }
         .terminal-container .xterm { height: 100%; }
+        .footer {
+            text-align: center;
+            padding: 20px 0 8px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            border-top: 1px solid var(--border);
+            margin-top: 24px;
+        }
+        .footer a { color: var(--accent); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-size: 18px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid var(--text-secondary);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-danger { background: rgba(239,68,68,0.2); color: var(--danger); }
+        .badge-warning { background: rgba(245,158,11,0.2); color: var(--warning); }
+        .badge-success { background: rgba(16,185,129,0.2); color: var(--success); }
+        .badge-info { background: rgba(59,130,246,0.2); color: var(--accent); }
+
+        @media (max-width: 768px) {
+            .dashboard { padding: 12px; }
+            .header { flex-direction: column; gap: 12px; }
+            .header h1 { font-size: 20px; }
+            .charts-grid { grid-template-columns: 1fr; gap: 14px; margin-bottom: 20px; }
+            .charts-row { grid-template-columns: 1fr; gap: 14px; margin-bottom: 20px; }
+            .chart-container { height: 140px; }
+            .chart-card { padding: 18px; }
+            .stat-value { font-size: 24px; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .processes-table { display: block; overflow-x: auto; white-space: nowrap; }
+            .security-tabs { overflow-x: auto; }
+        }
     </style>
 </head>
 <body>
     <div id="app">
-        <div class="loading">Loading Server Monitor...</div>
+        <div class="loading">Loading ByteSweep...</div>
     </div>
     <script>
         const CONFIG = {
@@ -572,20 +622,35 @@
             port: window.location.port || 5000,
             interval: 2000
         };
-        const API = `http://${CONFIG.host}:${CONFIG.port}/api`;
+        const API = 'http://' + CONFIG.host + ':' + CONFIG.port + '/api';
         const HISTORY = { cpu: [], ram: [], net: [] };
         const MAX_HISTORY = 60;
         let cpuChart, ramChart, netChart;
-
         let prevNet = { bytes_sent: 0, bytes_recv: 0, ts: 0 };
+        let AUTH_TOKEN = null;
+        let AUTH_REQUIRED = false;
+        let currentPath = '/';
 
-        async function fetchJSON(url) {
+        async function fetchJSON(url, opts) {
+            opts = opts || {};
+            if (AUTH_TOKEN) {
+                opts.headers = opts.headers || {};
+                opts.headers['X-Auth-Token'] = AUTH_TOKEN;
+            }
             try {
-                const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                if (!opts.signal) {
+                    opts.signal = AbortSignal.timeout(30000);
+                }
+                const r = await fetch(url, opts);
+                if (r.status === 401) {
+                    AUTH_TOKEN = null;
+                    await checkAuth();
+                    return null;
+                }
+                if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
             } catch (e) {
-                console.error(url, e);
+                if (e.name !== 'AbortError') console.error(url, e);
                 return null;
             }
         }
@@ -603,55 +668,63 @@
             return bytes + ' B';
         }
 
-        function netRate(bytes) {
-            if (bytes >= 1048576) return fmt(bytes / 1048576, 1) + ' MB/s';
-            if (bytes >= 1024) return fmt(bytes / 1024, 1) + ' KB/s';
-            return fmt(bytes, 1) + ' B/s';
+        // ── Auth ──
+
+        async function checkAuth() {
+            const s = await fetch(API + '/auth/status');
+            if (!s) return;
+            const data = await s.json();
+            AUTH_REQUIRED = data.auth_enabled;
+            if (AUTH_REQUIRED && !data.authenticated) {
+                showLogin();
+            } else if (!AUTH_REQUIRED || data.authenticated) {
+                showDashboard();
+            }
         }
 
-        async function loadAll() {
-            const [sys, metrics] = await Promise.all([
-                fetchJSON(`${API}/system`),
-                fetchJSON(`${API}/metrics`)
-            ]);
-            if (!sys || !metrics) {
-                document.getElementById('app').innerHTML = '<div class="loading">Connection failed. Retrying...</div>';
-                return;
-            }
-            prevNet = { bytes_sent: metrics.network.bytes_sent, bytes_recv: metrics.network.bytes_recv, ts: Date.now() };
-            updateHistory(metrics, true);
-            renderDashboard(sys, metrics);
-            initCharts();
-            loadFiles('/');
-            loadCleanupItems();
-            initTerminal();
-            cleanupLoaded = true;
+        function showLogin() {
+            document.getElementById('app').innerHTML =
+                '<div class="login-wrapper">' +
+                '<div class="login-box">' +
+                    '<h1>ByteSweep</h1>' +
+                    '<p>Server Monitor - Authentication required</p>' +
+                    '<input type="password" id="login-pw" placeholder="Password" onkeydown="if(event.key===\'Enter\')doLogin()">' +
+                    '<button onclick="doLogin()">Login</button>' +
+                    '<div class="login-error" id="login-error">Invalid password</div>' +
+                '</div></div>';
+            setTimeout(function() {
+                var el = document.getElementById('login-pw');
+                if (el) el.focus();
+            }, 100);
         }
 
-        function updateHistory(m, init) {
-            const now = Date.now();
-            HISTORY.cpu.push({ x: now, y: m.cpu });
-            HISTORY.ram.push({ x: now, y: m.ram ? m.ram.percent : 0 });
-
-            var netTotal;
-            if (init || !prevNet.ts) {
-                netTotal = 0;
-            } else {
-                var elapsed = (now - prevNet.ts) / 1000;
-                if (elapsed > 0) {
-                    var rxDelta = m.network.bytes_recv - prevNet.bytes_recv;
-                    var txDelta = m.network.bytes_sent - prevNet.bytes_sent;
-                    netTotal = (rxDelta + txDelta) / elapsed;
-                } else {
-                    netTotal = 0;
-                }
-            }
-            prevNet = { bytes_sent: m.network.bytes_sent, bytes_recv: m.network.bytes_recv, ts: now };
-            HISTORY.net.push({ x: now, y: netTotal / 1024 });
-
-            [HISTORY.cpu, HISTORY.ram, HISTORY.net].forEach(function(h) {
-                while (h.length > MAX_HISTORY) h.shift();
+        async function doLogin() {
+            var pw = document.getElementById('login-pw').value;
+            var r = await fetchJSON(API + '/auth/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({password: pw})
             });
+            if (r && r.success) {
+                AUTH_TOKEN = r.token;
+                showDashboard();
+            } else {
+                var err = document.getElementById('login-error');
+                if (err) err.classList.add('show');
+            }
+        }
+
+        async function doLogout() {
+            await fetchJSON(API + '/auth/logout', {method: 'POST'});
+            AUTH_TOKEN = null;
+            showLogin();
+        }
+
+        // ── Dashboard ──
+
+        async function showDashboard() {
+            document.getElementById('app').innerHTML = '<div class="loading">Loading dashboard...</div>';
+            await loadAll();
         }
 
         function initCharts() {
@@ -694,6 +767,53 @@
             netChart.update('none');
         }
 
+        function updateHistory(m, init) {
+            const now = Date.now();
+            HISTORY.cpu.push({ x: now, y: m.cpu });
+            HISTORY.ram.push({ x: now, y: m.ram ? m.ram.percent : 0 });
+
+            var netTotal;
+            if (init || !prevNet.ts) {
+                netTotal = 0;
+            } else {
+                var elapsed = (now - prevNet.ts) / 1000;
+                if (elapsed > 0) {
+                    var rxDelta = m.network.bytes_recv - prevNet.bytes_recv;
+                    var txDelta = m.network.bytes_sent - prevNet.bytes_sent;
+                    netTotal = (rxDelta + txDelta) / elapsed;
+                } else {
+                    netTotal = 0;
+                }
+            }
+            prevNet = { bytes_sent: m.network.bytes_sent, bytes_recv: m.network.bytes_recv, ts: now };
+            HISTORY.net.push({ x: now, y: netTotal / 1024 });
+
+            [HISTORY.cpu, HISTORY.ram, HISTORY.net].forEach(function(h) {
+                while (h.length > MAX_HISTORY) h.shift();
+            });
+        }
+
+        async function loadAll() {
+            const [sys, metrics] = await Promise.all([
+                fetchJSON(API + '/system'),
+                fetchJSON(API + '/metrics')
+            ]);
+            if (!sys || !metrics) {
+                document.getElementById('app').innerHTML = '<div class="loading">Connection failed. Retrying in 3s...</div>';
+                setTimeout(loadAll, 3000);
+                return;
+            }
+            prevNet = { bytes_sent: metrics.network.bytes_sent, bytes_recv: metrics.network.bytes_recv, ts: Date.now() };
+            updateHistory(metrics, true);
+            renderDashboard(sys, metrics);
+            initCharts();
+            loadFiles('/');
+            loadCleanupItems();
+            loadSecurityPorts();
+            loadSettings();
+            initTerminal();
+        }
+
         function renderDashboard(sys, m) {
             function diskColor(p) { return p > 90 ? 'var(--danger)' : p > 75 ? 'var(--warning)' : 'var(--accent)'; }
             function tempClass(t) { return t < 60 ? 'ok' : t < 80 ? 'warn' : 'hot'; }
@@ -705,14 +825,16 @@
             (m.disk || []).forEach(function(d) { totalDiskUsed += d.used; totalDiskSize += d.total; });
             var totalDiskPct = totalDiskSize > 0 ? (totalDiskUsed / totalDiskSize * 100) : 0;
             var netLastPoint = HISTORY.net.length > 0 ? HISTORY.net[HISTORY.net.length - 1].y : 0;
+            var logoutBtn = AUTH_REQUIRED ? '<button class="btn btn-danger btn-sm" onclick="doLogout()">Logout</button>' : '';
 
             var html = '<div class="dashboard">' +
                 '<div class="header">' +
-                    '<div><h1>ByteSweep</h1>' +
+                    '<div style="display:flex;align-items:center;gap:12px"><h1>ByteSweep</h1>' +
                     '<span class="disk-alert" id="disk-alert">&#9888; Disk above 90% &mdash; run cleanup</span></div>' +
                     '<div class="header-info">' +
                         '<span class="uptime-badge"><span class="status-dot"></span>' + uptimeStr + '</span>' +
                         '<span class="server-name">' + (sys.hostname || 'unknown') + ' &middot; ' + sys.platform + '</span>' +
+                        logoutBtn +
                     '</div>' +
                 '</div>' +
 
@@ -735,26 +857,17 @@
                     '<div class="stat-card" id="stat-net">' +
                         '<div class="stat-label">Network Rate</div>' +
                         '<div class="stat-value">' + fmt(netLastPoint, 1) + '</div>' +
-                        '<div class="stat-detail">KB/s total &middot; ' + Object.keys(m.network_ifaces || {}).length + ' interfaces</div>' +
+                        '<div class="stat-detail">KB/s &middot; ' + Object.keys(m.network_ifaces || {}).length + ' ifaces</div>' +
                     '</div>' +
                 '</div>' +
 
                 '<div class="charts-grid">' +
-                    '<div class="chart-card">' +
-                        '<h3>CPU Usage (%)</h3>' +
-                        '<div class="chart-container"><canvas id="cpuChart"></canvas></div>' +
-                    '</div>' +
-                    '<div class="chart-card">' +
-                        '<h3>Memory Usage (%)</h3>' +
-                        '<div class="chart-container"><canvas id="ramChart"></canvas></div>' +
-                    '</div>' +
+                    '<div class="chart-card"><h3>CPU Usage (%)</h3><div class="chart-container"><canvas id="cpuChart"></canvas></div></div>' +
+                    '<div class="chart-card"><h3>Memory Usage (%)</h3><div class="chart-container"><canvas id="ramChart"></canvas></div></div>' +
                 '</div>' +
 
                 '<div class="charts-grid">' +
-                    '<div class="chart-card">' +
-                        '<h3>Network Traffic (KB/s)</h3>' +
-                        '<div class="chart-container"><canvas id="netChart"></canvas></div>' +
-                    '</div>' +
+                    '<div class="chart-card"><h3>Network Traffic (KB/s)</h3><div class="chart-container"><canvas id="netChart"></canvas></div></div>' +
                     '<div class="chart-card" id="load-card">' +
                         '<h3>System Load</h3>' +
                         '<div class="chart-container" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px">' +
@@ -810,27 +923,81 @@
                 html += '</div></div>';
             }
 
-            // Top processes
+            // Top processes (with kill buttons)
             html += '<div class="info-section"><h3>Top Processes</h3>' +
                 '<table class="processes-table">' +
-                    '<thead><tr><th>PID</th><th>Name</th><th>CPU%</th><th>Memory%</th></tr></thead><tbody>';
+                    '<thead><tr><th>PID</th><th>Name</th><th>CPU%</th><th>Memory%</th><th style="width:60px"></th></tr></thead><tbody id="proc-body">';
             if (m.top_processes && m.top_processes.length > 0) {
-                m.top_processes.slice(0, 8).forEach(function(p) {
-                    html += '<tr><td>' + p.pid + '</td><td>' + p.name + '</td><td>' + fmt(p.cpu, 1) + '%</td><td>' + fmt(p.mem, 1) + '%</td></tr>';
+                m.top_processes.slice(0, 12).forEach(function(p) {
+                    html += '<tr><td>' + p.pid + '</td><td>' + p.name + '</td><td>' + fmt(p.cpu, 1) + '%</td><td>' + fmt(p.mem, 1) + '%</td>' +
+                        '<td><button class="kill-btn" onclick="killProcess(' + p.pid + ',this)" title="Kill process">&#10005;</button></td></tr>';
                 });
             } else {
-                html += '<tr><td colspan="4" style="color:var(--text-secondary)">No process data</td></tr>';
+                html += '<tr><td colspan="5" style="color:var(--text-secondary)">No process data</td></tr>';
             }
             html += '</tbody></table></div>';
+
+            // ── Security Panel ──
+            html += '<div class="info-section" id="security-panel">' +
+                '<h3>&#128737; Security</h3>' +
+                '<div class="security-tabs">' +
+                    '<div class="security-tab active" onclick="switchSecurityTab(\'ports\')">Open Ports</div>' +
+                    '<div class="security-tab" onclick="switchSecurityTab(\'mining\')">Mining</div>' +
+                    '<div class="security-tab" onclick="switchSecurityTab(\'forensic\')">Forensic Scan</div>' +
+                    '<div class="security-tab" onclick="switchSecurityTab(\'virus\')">Virus Scan</div>' +
+                '</div>' +
+                '<div class="security-tab-content active" id="tab-ports">' +
+                    '<div id="ports-content"><span class="spinner"></span>Loading ports...</div>' +
+                '</div>' +
+                '<div class="security-tab-content" id="tab-mining">' +
+                    '<div style="margin-bottom:12px">' +
+                        '<button class="btn btn-warning" onclick="runMiningDetect()" id="mining-btn">&#9888; Scan for Miners</button>' +
+                    '</div>' +
+                    '<div id="mining-result"></div>' +
+                '</div>' +
+                '<div class="security-tab-content" id="tab-forensic">' +
+                    '<div style="margin-bottom:12px">' +
+                        '<button class="btn btn-danger" onclick="runForensicScan()" id="forensic-btn">&#128269; Run Full Forensic Scan</button>' +
+                        '<span style="font-size:11px;color:var(--text-secondary);margin-left:8px">Checks hidden dirs, backdoors, rootkits, C2, persistence</span>' +
+                    '</div>' +
+                    '<div id="forensic-result"></div>' +
+                '</div>' +
+                '<div class="security-tab-content" id="tab-virus">' +
+                    '<div style="margin-bottom:12px">' +
+                        '<button class="btn btn-danger" onclick="runVirusScan()" id="virus-btn">&#128737; Run Virus Scan</button>' +
+                        '<span style="font-size:11px;color:var(--text-secondary);margin-left:8px">Requires ClamAV</span>' +
+                    '</div>' +
+                    '<div id="virus-result"></div>' +
+                '</div>' +
+            '</div>';
+
+            // File Manager
+            html += '<div class="info-section" id="settings-panel">' +
+                '<h3>&#9881; Settings</h3>' +
+                '<div id="settings-content" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">' +
+                    '<div style="display:flex;align-items:center;gap:8px">' +
+                        '<span style="font-size:13px">Password protection:</span>' +
+                        '<span class="badge badge-success" id="pw-badge-off" style="display:none">OFF</span>' +
+                        '<span class="badge badge-danger" id="pw-badge-on" style="display:none">ON</span>' +
+                    '</div>' +
+                    '<div id="pw-controls" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+                        '<input type="password" id="settings-pw" placeholder="New password" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text-primary);font-size:13px;width:160px">' +
+                        '<input type="password" id="settings-pw-confirm" placeholder="Confirm password" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text-primary);font-size:13px;width:160px">' +
+                        '<button class="btn btn-sm btn-accent" onclick="enablePassword()">Enable</button>' +
+                        '<button class="btn btn-sm btn-danger" id="disable-pw-btn" onclick="disablePassword()" style="display:none">Disable</button>' +
+                    '</div>' +
+                    '<span id="settings-msg" style="font-size:12px;color:var(--text-secondary)"></span>' +
+                '</div>' +
+            '</div>';
 
             // File Manager
             html += '<div class="file-manager" id="file-manager">' +
                 '<h3>&#128193; File Manager</h3>' +
                 '<div class="file-toolbar">' +
                     '<input type="text" id="file-path" placeholder="Path..." onkeydown="if(event.key==\'Enter\')navigateTo(document.getElementById(\'file-path\').value)">' +
-                    '<button onclick="navigateTo(document.getElementById(\'file-path\').value)">Go</button>' +
-                    '<button onclick="navigateUp()">&#8593; Up</button>' +
-                    '<button onclick="reloadFiles()">&#8635; Reload</button>' +
+                    '<button class="btn btn-sm" onclick="navigateTo(document.getElementById(\'file-path\').value)">Go</button>' +
+                    '<button class="btn btn-sm" onclick="navigateUp()">&#8593; Up</button>' +
+                    '<button class="btn btn-sm" onclick="reloadFiles()">&#8635; Reload</button>' +
                 '</div>' +
                 '<div class="file-list" id="file-list"><div class="file-empty">Loading...</div></div>' +
             '</div>';
@@ -840,13 +1007,13 @@
                 '<h3>&#129529; Maintenance &mdash; Disk Cleanup</h3>' +
                 '<div class="cleanup-grid" id="cleanup-items"></div>' +
                 '<div style="display:flex;align-items:center;gap:12px">' +
-                    '<button class="cleanup-run" id="cleanup-run-btn" onclick="runCleanup()">Run Cleanup</button>' +
+                    '<button class="btn btn-accent" id="cleanup-run-btn" onclick="runCleanup()">Run Cleanup</button>' +
                     '<span style="font-size:12px;color:var(--text-secondary)" id="cleanup-select-hint">Select items above, or run all</span>' +
                 '</div>' +
                 '<div class="cleanup-result" id="cleanup-result"></div>' +
             '</div>';
 
-            // Terminal panel
+            // Terminal
             html += '<div class="terminal-panel" id="terminal-panel">' +
                 '<div class="terminal-header">' +
                     '<h3>&#9000; Web Terminal &mdash; ' + (sys.hostname || 'server') + '</h3>' +
@@ -856,153 +1023,366 @@
             '</div>';
 
             html += '<div class="footer"><a href="https://github.com/iu2vwk-ita/swiftserver" target="_blank">github.com/iu2vwk-ita/swiftserver</a></div>';
-
             html += '</div>';
             document.getElementById('app').innerHTML = html;
 
-            // Show disk alert if above 90%
             if (totalDiskPct > 90) {
                 var alertEl = document.getElementById('disk-alert');
                 if (alertEl) alertEl.classList.add('active');
             }
         }
 
-        // ── Web Terminal ──
+        // ── Security Tab Switching ──
 
-        var term = null;
-        var termSocket = null;
-        var resizeSocket = null;
+        function switchSecurityTab(tab) {
+            document.querySelectorAll('.security-tab').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelectorAll('.security-tab-content').forEach(function(c) { c.classList.remove('active'); });
+            var tabEl = document.querySelector('.security-tab[onclick*="' + tab + '"]');
+            if (tabEl) tabEl.classList.add('active');
+            var contentEl = document.getElementById('tab-' + tab);
+            if (contentEl) contentEl.classList.add('active');
+            if (tab === 'ports') loadSecurityPorts();
+        }
 
-        function initTerminal() {
-            if (term) {
-                term.focus();
+        // ── Security: Ports ──
+
+        async function loadSecurityPorts() {
+            var el = document.getElementById('ports-content');
+            if (!el) return;
+            var data = await fetchJSON(API + '/security/ports');
+            if (!data) {
+                el.innerHTML = '<span style="color:var(--danger);font-size:13px">Failed to load port data</span>';
+                return;
+            }
+            var html = '<div class="result-header">' +
+                '<span><span class="badge badge-info">' + data.total_listening + ' listening</span> ' +
+                '<span class="badge badge-success">' + data.total_established + ' established</span> ' +
+                '<span class="badge badge-warning">' + data.total_recent + ' recent</span></span>' +
+                '<button class="btn btn-sm" onclick="loadSecurityPorts()">&#8635; Refresh</button>' +
+            '</div>';
+
+            if (data.listening && data.listening.length > 0) {
+                html += '<div style="margin-top:8px;font-size:12px;color:var(--text-secondary);margin-bottom:4px">Listening Ports:</div>';
+                html += '<div class="port-list">';
+                data.listening.forEach(function(p) {
+                    html += '<div class="port-entry"><span><span class="port">:' + p.port + '</span> (' + p.protocol + ')</span><span class="addr">' + (p.process || p.address) + '</span></div>';
+                });
+                html += '</div>';
+            }
+            if (data.established && data.established.length > 0) {
+                html += '<div style="margin-top:12px;font-size:12px;color:var(--text-secondary);margin-bottom:4px">Established Connections:</div>';
+                html += '<div class="port-list">';
+                data.established.slice(0, 15).forEach(function(p) {
+                    html += '<div class="port-entry"><span>' + p.local_address + ':<span class="port">' + p.local_port + '</span> &rarr; ' + p.remote_address + ':' + p.remote_port + '</span></div>';
+                });
+                html += '</div>';
+            }
+            if (data.recent && data.recent.length > 0) {
+                html += '<div style="margin-top:12px;font-size:12px;color:var(--text-secondary);margin-bottom:4px">Recent Connections:</div>';
+                html += '<div class="port-list">';
+                data.recent.forEach(function(p) {
+                    html += '<div class="port-entry"><span>' + p.local_address + ':<span class="port">' + p.local_port + '</span> &rarr; <span style="color:var(--warning)">' + p.remote_address + ':' + p.remote_port + '</span></span></div>';
+                });
+                html += '</div>';
+            }
+            el.innerHTML = html;
+        }
+
+        // ── Security: Forensic Scan ──
+
+        async function runForensicScan() {
+            var btn = document.getElementById('forensic-btn');
+            var result = document.getElementById('forensic-result');
+            btn.disabled = true;
+            btn.textContent = 'Scanning (may take a while)...';
+            result.innerHTML = '<span class="spinner"></span> Running full forensic scan...';
+
+            var data = await fetchJSON(API + '/security/forensic-scan');
+            btn.disabled = false;
+            btn.textContent = 'Run Full Forensic Scan';
+
+            if (!data) {
+                result.innerHTML = '<div style="color:var(--danger);font-size:13px;margin-top:8px">Scan failed</div>';
                 return;
             }
 
-            var container = document.getElementById('terminal-container');
-            if (!container) return;
+            var total = data.total_findings || 0;
+            var html = '';
 
-            term = new Terminal({
-                cursorBlink: true,
-                cursorStyle: 'bar',
-                fontSize: 14,
-                fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
-                theme: {
-                    background: '#0a0a0a',
-                    foreground: '#e4e8f1',
-                    cursor: '#10b981',
-                    selectionBackground: 'rgba(16,185,129,0.3)',
-                    black: '#1a1f2e',
-                    red: '#ef4444',
-                    green: '#10b981',
-                    yellow: '#f59e0b',
-                    blue: '#3b82f6',
-                    magenta: '#a855f7',
-                    cyan: '#06b6d4',
-                    white: '#e4e8f1',
-                    brightBlack: '#475569',
-                    brightRed: '#f87171',
-                    brightGreen: '#34d399',
-                    brightYellow: '#fbbf24',
-                    brightBlue: '#60a5fa',
-                    brightMagenta: '#c084fc',
-                    brightCyan: '#22d3ee',
-                    brightWhite: '#f8fafc'
-                },
-                allowProposedApi: true,
-                scrollback: 5000
-            });
-
-            var fitAddon = new FitAddon.FitAddon();
-            var webLinksAddon = new WebLinksAddon.WebLinksAddon();
-            term.loadAddon(fitAddon);
-            term.loadAddon(webLinksAddon);
-            term.open(container);
-            fitAddon.fit();
-
-            // Resize observer
-            var ro = new ResizeObserver(function() {
-                try { fitAddon.fit(); } catch(e) {}
-                resizePty();
-            });
-            ro.observe(container);
-
-            // Connect WebSocket
-            var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            var wsUrl = proto + '//' + window.location.host + '/ws/terminal';
-
-            termSocket = new WebSocket(wsUrl);
-            termSocket.binaryType = 'arraybuffer';
-
-            termSocket.onopen = function() {
-                term.write('\r\n\x1b[32mConnected to ' + (term._core._renderService._renderer._options.theme ? 'server' : CONFIG.host) + '\x1b[0m\r\n\r\n');
-                term.focus();
-                resizePty();
-            };
-
-            termSocket.onmessage = function(e) {
-                if (term) {
-                    term.write(new Uint8Array(e.data));
-                }
-            };
-
-            termSocket.onclose = function() {
-                if (term) {
-                    term.write('\r\n\x1b[33mDisconnected\x1b[0m\r\n');
-                }
-            };
-
-            termSocket.onerror = function() {
-                if (term) {
-                    term.write('\r\n\x1b[31mConnection error\x1b[0m\r\n');
-                }
-            };
-
-            term.onData(function(data) {
-                if (termSocket && termSocket.readyState === WebSocket.OPEN) {
-                    termSocket.send(data);
-                }
-            });
-
-            // Resize WebSocket for PTY resize
-            var resizeWsUrl = proto + '//' + window.location.host + '/ws/terminal/resize';
-            resizeSocket = new WebSocket(resizeWsUrl);
-
-            function resizePty() {
-                if (term && resizeSocket && resizeSocket.readyState === WebSocket.OPEN) {
-                    resizeSocket.send(JSON.stringify({
-                        cols: term.cols,
-                        rows: term.rows
-                    }));
-                }
+            if (total === 0) {
+                html += '<div style="color:var(--success);font-size:14px;margin-top:8px">&#10003; No threats found &mdash; system appears clean</div>';
+            } else {
+                html += '<div style="color:var(--danger);font-size:14px;margin-top:8px;margin-bottom:12px"><b>&#9888; ' + total + ' potential threat(s) detected!</b></div>';
             }
 
-            term.onResize(function() {
-                resizePty();
+            // Build compact report
+            var sections = [
+                {key: 'hidden_dirs', label: 'Hidden Directories', icon: '&#128193;'},
+                {key: 'suspicious_binaries', label: 'Suspicious Binaries', icon: '&#9888;'},
+                {key: 'backdoor_ssh', label: 'SSH Backdoors', icon: '&#128737;'},
+                {key: 'rootkit_signs', label: 'Rootkit Signs', icon: '&#9762;'},
+                {key: 'ld_preload', label: 'LD_PRELOAD', icon: '&#128065;'},
+                {key: 'suspicious_cron', label: 'Suspicious Cron', icon: '&#9200;'},
+                {key: 'suspicious_systemd', label: 'Suspicious Systemd', icon: '&#9881;'},
+                {key: 'c2_agents', label: 'C2 Agents', icon: '&#128225;'},
+                {key: 'reverse_shells', label: 'Reverse Shells', icon: '&#128279;'},
+                {key: 'mining_connections', label: 'Mining Connections', icon: '&#9935;'}
+            ];
+
+            sections.forEach(function(s) {
+                var val = data[s.key];
+                if (!val) return;
+                var count = val.findings_count !== undefined ? val.findings_count : (val.length || 0);
+                var findings = val.findings || val;
+
+                var severityColor = count > 0 ? 'var(--danger)' : 'var(--text-secondary)';
+                html += '<div style="margin-top:12px;padding:10px;background:var(--bg-secondary);border-radius:8px">';
+                html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+                html += '<span style="font-size:13px;font-weight:600">' + s.icon + ' ' + s.label + '</span>';
+                html += '<span style="font-size:12px;color:' + severityColor + ';font-weight:600">' + count + ' found</span>';
+                html += '</div>';
+
+                if (count > 0) {
+                    findings.slice(0, 8).forEach(function(f) {
+                        var sevBadge = f.severity === 'critical' ? '<span class="badge badge-danger">CRIT</span>' :
+                                       f.severity === 'high' ? '<span class="badge badge-warning">HIGH</span>' :
+                                       '<span class="badge badge-info">MED</span>';
+                        var desc = '';
+                        if (s.key === 'hidden_dirs') desc = f.path + ' (' + f.size_str + ')';
+                        else if (s.key === 'suspicious_binaries') desc = f.path + ' (' + f.size_str + ')' + (f.is_upx_packed ? ' [UPX]' : '');
+                        else if (s.key === 'backdoor_ssh') desc = f.detail || f.content || JSON.stringify(f);
+                        else if (s.key === 'suspicious_cron') desc = f.content ? f.content.substring(0,100) : '';
+                        else if (s.key === 'suspicious_systemd') desc = f.name;
+                        else if (s.key === 'c2_agents') desc = f.name + ' (PID ' + f.pid + ')';
+                        else if (s.key === 'reverse_shells') desc = f.name + ' (PID ' + f.pid + ') - ' + (f.pattern_matched || '');
+                        else if (s.key === 'mining_connections') desc = f.detail || (f.remote || '');
+                        else desc = f.detail || f.path || f.content || f.module || JSON.stringify(f).substring(0, 100);
+                        html += '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;padding-left:8px">' +
+                            sevBadge + ' ' + desc + '</div>';
+                    });
+                    if (count > 8) {
+                        html += '<div style="font-size:11px;color:var(--text-secondary);margin-top:4px">+ ' + (count - 8) + ' more...</div>';
+                    }
+                }
+                html += '</div>';
             });
+
+            result.innerHTML = html;
         }
 
-        function disconnectTerminal() {
-            if (termSocket) {
-                try { termSocket.close(); } catch(e) {}
-                termSocket = null;
+        // ── Security: Mining Detection ──
+
+        async function runMiningDetect() {
+            var btn = document.getElementById('mining-btn');
+            var result = document.getElementById('mining-result');
+            btn.disabled = true;
+            btn.textContent = 'Scanning...';
+            result.innerHTML = '<span class="spinner"></span> Scanning processes...';
+
+            var data = await fetchJSON(API + '/security/mine-detect');
+            btn.disabled = false;
+            btn.textContent = 'Scan for Miners';
+
+            if (!data) {
+                result.innerHTML = '<div style="color:var(--danger);font-size:13px;margin-top:8px">Scan failed</div>';
+                return;
             }
-            if (resizeSocket) {
-                try { resizeSocket.close(); } catch(e) {}
-                resizeSocket = null;
+
+            if (data.suspicious_count === 0) {
+                result.innerHTML = '<div style="color:var(--success);font-size:13px;margin-top:8px">&#10003; No suspicious mining activity detected</div>';
+                return;
             }
-            if (term) {
-                try { term.dispose(); } catch(e) {}
-                term = null;
+
+            var html = '<div style="color:var(--warning);font-size:14px;margin-top:8px"><b>&#9888; ' + data.suspicious_count + ' suspicious process(es) found</b></div>';
+            html += '<table class="processes-table" style="margin-top:8px">' +
+                '<thead><tr><th>PID</th><th>Name</th><th>CPU%</th><th>Reason</th><th></th></tr></thead><tbody>';
+            data.suspicious.forEach(function(p) {
+                var reasonBadge = p.reason === 'known_miner' ? '<span class="badge badge-danger">known miner</span>' : '<span class="badge badge-warning">high CPU</span>';
+                html += '<tr><td>' + p.pid + '</td><td>' + p.name + '</td><td>' + fmt(p.cpu, 1) + '%</td><td>' + reasonBadge + '</td>' +
+                    '<td><button class="kill-btn" style="opacity:1" onclick="killProcess(' + p.pid + ',this)">&#10005; Kill</button></td></tr>';
+            });
+            html += '</tbody></table>';
+            result.innerHTML = html;
+        }
+
+        // ── Security: Virus Scan ──
+
+        async function runVirusScan() {
+            var btn = document.getElementById('virus-btn');
+            var result = document.getElementById('virus-result');
+
+            // Check if ClamAV is installed
+            var status = await fetchJSON(API + '/security/clamav-status');
+            if (status && !status.installed) {
+                if (confirm('ClamAV is not installed. Install it now?\n\n~200 MB download. This will run:\napt install clamav clamav-daemon')) {
+                    await installClamAV();
+                    return;
+                }
+                result.innerHTML = '<div style="color:var(--text-secondary);font-size:13px;margin-top:8px">ClamAV not installed. Install manually: apt install clamav</div>';
+                return;
+            }
+
+            // Run actual scan
+            btn.disabled = true;
+            btn.textContent = 'Scanning (may take a while)...';
+            result.innerHTML = '<span class="spinner"></span> Running ClamAV scan...';
+
+            data = await fetchJSON(API + '/security/virus-scan', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({paths: null})
+            });
+            btn.disabled = false;
+            btn.textContent = 'Run Virus Scan';
+
+            if (!data || !data.success) {
+                result.innerHTML = '<div style="color:var(--danger);font-size:13px;margin-top:8px">' + (data && data.error ? data.error : 'Scan failed') + '</div>';
+                return;
+            }
+
+            var html = '<div style="font-size:13px;margin-top:8px">';
+            if (data.total_infected === 0) {
+                html += '<div style="color:var(--success);margin-bottom:8px">&#10003; No viruses found</div>';
+            } else {
+                html += '<div style="color:var(--danger);margin-bottom:8px"><b>&#9888; ' + data.total_infected + ' infected file(s) found!</b></div>';
+            }
+            html += '<div style="font-size:11px;color:var(--text-secondary)">Scanner: ' + (data.clamav || 'unknown') + '</div>';
+            data.results.forEach(function(r) {
+                if (r.infected > 0) {
+                    html += '<div style="color:var(--danger);margin-top:4px"><b>' + r.path + ':</b> ' + r.infected + ' infected</div>';
+                    r.infected_files.forEach(function(f) {
+                        html += '<div style="font-size:11px;color:var(--danger);margin-left:12px">- ' + f + '</div>';
+                    });
+                } else if (!r.error) {
+                    html += '<div style="color:var(--text-secondary);margin-top:4px">' + r.path + ': clean' + (r.files_scanned ? ' (' + r.files_scanned + ' files scanned)' : '') + '</div>';
+                } else {
+                    html += '<div style="color:var(--warning);margin-top:4px">' + r.path + ': ' + r.error + '</div>';
+                }
+            });
+            html += '</div>';
+            result.innerHTML = html;
+        }
+
+        async function installClamAV() {
+            var btn = document.getElementById('virus-btn');
+            var result = document.getElementById('virus-result');
+            btn.disabled = true;
+            btn.textContent = 'Installing ClamAV...';
+            result.innerHTML = '<span class="spinner"></span> Installing ClamAV (this may take a few minutes)...';
+
+            // Use longer timeout for apt operations
+            var data = await fetchJSON(API + '/security/install-clamav', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                signal: AbortSignal.timeout(600000),
+                body: JSON.stringify({})
+            });
+
+            btn.disabled = false;
+            btn.textContent = 'Run Virus Scan';
+
+            if (data && data.success) {
+                result.innerHTML = '<div style="color:var(--success);font-size:13px;margin-top:8px">&#10003; ' + (data.message || 'ClamAV installed!') + '</div>' +
+                    '<button class="btn btn-sm" style="margin-top:8px" onclick="runVirusScan()">Run Virus Scan Now</button>';
+            } else {
+                result.innerHTML = '<div style="color:var(--danger);font-size:13px;margin-top:8px">Installation failed: ' + (data && data.error ? data.error : 'Timeout or connection error') + '</div>';
             }
         }
 
-        // ── Cleanup Functions ──
+        // ── Process Kill ──
 
-        var cleanupLoaded = false;
+        async function killProcess(pid, btn) {
+            if (!confirm('Kill process PID ' + pid + '?')) return;
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '...';
+            }
+            var data = await fetchJSON(API + '/process/kill', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({pid: pid})
+            });
+            if (data && data.success) {
+                if (btn) {
+                    var row = btn.closest('tr');
+                    if (row) row.style.opacity = '0.4';
+                }
+            } else {
+                alert('Failed to kill process: ' + (data ? data.error : 'unknown error'));
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '\u2715';
+                }
+            }
+        }
+
+        // ── Settings ──
+
+        async function loadSettings() {
+            var s = await fetchJSON(API + '/settings');
+            if (!s) return;
+            var badgeOff = document.getElementById('pw-badge-off');
+            var badgeOn = document.getElementById('pw-badge-on');
+            var disableBtn = document.getElementById('disable-pw-btn');
+            if (s.password_enabled) {
+                if (badgeOff) badgeOff.style.display = 'none';
+                if (badgeOn) badgeOn.style.display = 'inline-block';
+                if (disableBtn) disableBtn.style.display = 'inline-block';
+            } else {
+                if (badgeOff) badgeOff.style.display = 'inline-block';
+                if (badgeOn) badgeOn.style.display = 'none';
+                if (disableBtn) disableBtn.style.display = 'none';
+            }
+        }
+
+        async function enablePassword() {
+            var pw = document.getElementById('settings-pw').value;
+            var confirm = document.getElementById('settings-pw-confirm').value;
+            var msg = document.getElementById('settings-msg');
+            if (!pw || pw.length < 4) {
+                msg.innerHTML = '<span style="color:var(--danger)">Min 4 characters</span>';
+                return;
+            }
+            if (pw !== confirm) {
+                msg.innerHTML = '<span style="color:var(--danger)">Passwords dont match</span>';
+                return;
+            }
+            var r = await fetchJSON(API + '/settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'set_password', password: pw})
+            });
+            if (r && r.success) {
+                msg.innerHTML = '<span style="color:var(--success)">Password enabled! All sessions reset.</span>';
+                document.getElementById('settings-pw').value = '';
+                document.getElementById('settings-pw-confirm').value = '';
+                loadSettings();
+            } else {
+                msg.innerHTML = '<span style="color:var(--danger)">' + ((r && r.error) || 'Failed') + '</span>';
+            }
+        }
+
+        async function disablePassword() {
+            if (!confirm('Disable password protection? Everyone will have access.')) return;
+            var msg = document.getElementById('settings-msg');
+            var r = await fetchJSON(API + '/settings', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({action: 'disable_password'})
+            });
+            if (r && r.success) {
+                msg.innerHTML = '<span style="color:var(--success)">Password disabled.</span>';
+                loadSettings();
+            } else {
+                msg.innerHTML = '<span style="color:var(--danger)">' + ((r && r.error) || 'Failed') + '</span>';
+            }
+        }
+
+        // ── Cleanup ──
 
         async function loadCleanupItems() {
             var grid = document.getElementById('cleanup-items');
+            if (!grid) return;
             grid.innerHTML = '<div style="color:var(--text-secondary);font-size:12px">Loading...</div>';
             var data = await fetchJSON(API + '/cleanup/status');
             if (!data || !data.items) {
@@ -1025,7 +1405,6 @@
             var result = document.getElementById('cleanup-result');
             btn.disabled = true;
             btn.textContent = 'Running...';
-            btn.classList.add('running');
             result.className = 'cleanup-result';
             result.style.display = 'none';
 
@@ -1034,21 +1413,14 @@
                 selected.push(cb.id.replace('cln-', ''));
             });
 
-            var data = null;
-            try {
-                var r = await fetch(API + '/cleanup/run', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ items: selected.length > 0 ? selected : null })
-                });
-                data = await r.json();
-            } catch(e) {
-                console.error('Cleanup failed', e);
-            }
+            var data = await fetchJSON(API + '/cleanup/run', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ items: selected.length > 0 ? selected : null })
+            });
 
             btn.disabled = false;
             btn.textContent = 'Run Cleanup';
-            btn.classList.remove('running');
 
             if (data && data.total_freed > 0) {
                 result.className = 'cleanup-result success';
@@ -1067,8 +1439,6 @@
 
         // ── File Manager ──
 
-        var currentPath = '/';
-
         function fmtDate(ts) {
             if (!ts) return '-';
             var d = new Date(ts * 1000);
@@ -1084,7 +1454,8 @@
             if (!list) return;
             list.innerHTML = '<div class="file-empty">Loading...</div>';
             try {
-                var r = await fetch(API + '/files/list?path=' + encodeURIComponent(path));
+                var r = await fetch(API + '/files/list?path=' + encodeURIComponent(path),
+                    AUTH_TOKEN ? {headers: {'X-Auth-Token': AUTH_TOKEN}} : {});
                 var data = await r.json();
                 currentPath = data.path;
                 var input = document.getElementById('file-path');
@@ -1108,14 +1479,11 @@
 
                     row.onclick = function(e) {
                         if (e.target.className === 'delete-btn') return;
-                        if (f.type === 'dir') {
-                            navigateTo(data.path + '/' + f.name);
-                        }
+                        if (f.type === 'dir') navigateTo(data.path + '/' + f.name);
                     };
                     list.appendChild(row);
                 });
 
-                // Attach delete handlers
                 list.querySelectorAll('.delete-btn').forEach(function(btn) {
                     btn.onclick = function(e) {
                         e.stopPropagation();
@@ -1128,62 +1496,131 @@
             }
         }
 
-        function navigateTo(path) {
-            path = path || '/';
-            loadFiles(path);
-        }
-
+        function navigateTo(path) { path = path || '/'; loadFiles(path); }
         function navigateUp() {
             var parent = currentPath.substring(0, currentPath.lastIndexOf('/'));
             if (!parent || parent === '') parent = '/';
             loadFiles(parent);
         }
-
-        function reloadFiles() {
-            loadFiles(currentPath);
-        }
+        function reloadFiles() { loadFiles(currentPath); }
 
         async function deletePath(path) {
             if (!confirm('Delete ' + path + '?')) return;
+            var opts = {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path: path})
+            };
+            if (AUTH_TOKEN) opts.headers['X-Auth-Token'] = AUTH_TOKEN;
             try {
-                var r = await fetch(API + '/files/delete', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({path: path})
-                });
+                var r = await fetch(API + '/files/delete', opts);
                 var data = await r.json();
-                if (data.success) {
-                    reloadFiles();
-                } else {
-                    alert('Delete failed: ' + (data.error || 'Unknown error'));
-                }
-            } catch(e) {
-                alert('Delete failed: ' + e.message);
-            }
+                if (data.success) reloadFiles();
+                else alert('Delete failed: ' + (data.error || 'Unknown error'));
+            } catch(e) { alert('Delete failed: ' + e.message); }
         }
+
+        // ── Terminal ──
+
+        var term = null;
+        var termSocket = null;
+        var resizeSocket = null;
+
+        function initTerminal() {
+            if (term) { term.focus(); return; }
+            var container = document.getElementById('terminal-container');
+            if (!container) return;
+
+            term = new Terminal({
+                cursorBlink: true,
+                cursorStyle: 'bar',
+                fontSize: 14,
+                fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                theme: {
+                    background: '#0a0a0a',
+                    foreground: '#e4e8f1',
+                    cursor: '#10b981',
+                    selectionBackground: 'rgba(16,185,129,0.3)',
+                    black: '#1a1f2e', red: '#ef4444', green: '#10b981', yellow: '#f59e0b',
+                    blue: '#3b82f6', magenta: '#a855f7', cyan: '#06b6d4', white: '#e4e8f1',
+                    brightBlack: '#475569', brightRed: '#f87171', brightGreen: '#34d399',
+                    brightYellow: '#fbbf24', brightBlue: '#60a5fa', brightMagenta: '#c084fc',
+                    brightCyan: '#22d3ee', brightWhite: '#f8fafc'
+                },
+                allowProposedApi: true,
+                scrollback: 5000
+            });
+
+            var fitAddon = new FitAddon.FitAddon();
+            var webLinksAddon = new WebLinksAddon.WebLinksAddon();
+            term.loadAddon(fitAddon);
+            term.loadAddon(webLinksAddon);
+            term.open(container);
+            fitAddon.fit();
+
+            var ro = new ResizeObserver(function() {
+                try { fitAddon.fit(); } catch(e) {}
+                resizePty();
+            });
+            ro.observe(container);
+
+            var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            var wsUrl = proto + '//' + window.location.host + '/ws/terminal';
+            termSocket = new WebSocket(wsUrl);
+            termSocket.binaryType = 'arraybuffer';
+            termSocket.onopen = function() {
+                term.write('\r\n\x1b[32mConnected to server\x1b[0m\r\n\r\n');
+                term.focus();
+                resizePty();
+            };
+            termSocket.onmessage = function(e) { if (term) term.write(new Uint8Array(e.data)); };
+            termSocket.onclose = function() { if (term) term.write('\r\n\x1b[33mDisconnected\x1b[0m\r\n'); };
+            termSocket.onerror = function() { if (term) term.write('\r\n\x1b[31mConnection error\x1b[0m\r\n'); };
+            term.onData(function(data) {
+                if (termSocket && termSocket.readyState === WebSocket.OPEN) termSocket.send(data);
+            });
+
+            var resizeWsUrl = proto + '//' + window.location.host + '/ws/terminal/resize';
+            resizeSocket = new WebSocket(resizeWsUrl);
+            function resizePty() {
+                if (term && resizeSocket && resizeSocket.readyState === WebSocket.OPEN) {
+                    resizeSocket.send(JSON.stringify({ cols: term.cols, rows: term.rows }));
+                }
+            }
+            term.onResize(function() { resizePty(); });
+        }
+
+        // ── Poll loop ──
 
         async function poll() {
             var m = await fetchJSON(API + '/metrics');
             if (!m) return;
             updateHistory(m, false);
             updateCharts();
-
-            // Update stat cards
             var cpuEl = document.querySelector('#stat-cpu .stat-value');
             var ramEl = document.querySelector('#stat-ram .stat-value');
             if (cpuEl) cpuEl.textContent = fmt(m.cpu) + '%';
             if (ramEl) ramEl.textContent = fmt(m.ram.percent) + '%';
-
-            // Update load card
             var load1m = document.getElementById('load-1m');
             if (load1m && m.load) {
                 load1m.textContent = fmt(m.load['1min'], 2);
                 var loadDiv = load1m.parentElement.querySelector('div:last-child');
                 if (loadDiv) loadDiv.innerHTML = '5min: ' + fmt(m.load['5min'], 2) + ' &middot; 15min: ' + fmt(m.load['15min'], 2);
             }
+            // Update process table
+            var procBody = document.getElementById('proc-body');
+            if (procBody && m.top_processes) {
+                procBody.innerHTML = '';
+                m.top_processes.slice(0, 12).forEach(function(p) {
+                    var tr = document.createElement('tr');
+                    tr.innerHTML = '<td>' + p.pid + '</td><td>' + p.name + '</td><td>' + fmt(p.cpu, 1) + '%</td><td>' + fmt(p.mem, 1) + '%</td>' +
+                        '<td><button class="kill-btn" onclick="killProcess(' + p.pid + ',this)" title="Kill process">&#10005;</button></td>';
+                    procBody.appendChild(tr);
+                });
+            }
         }
 
-        loadAll().then(function() {
+        checkAuth().then(function() {
             setInterval(poll, CONFIG.interval);
         });
     </script>
