@@ -27,44 +27,20 @@ A lightweight, real-time Linux server monitoring dashboard with integrated disk 
 
 ## Installation
 
-Pre-built packages in this repository:
+Build packages from source (v2.0+):
 
-| Format | Package | Size |
-|--------|---------|------|
-| **Debian/Ubuntu** | [`bytesweep_1.0.0_all.deb`](./bytesweep_1.0.0_all.deb) | 17 KB |
-| **Fedora/RHEL** | [`bytesweep-1.0.0-1.noarch.rpm`](./bytesweep-1.0.0-1.noarch.rpm) | 26 KB |
-| **AppImage** | [`ByteSweep-1.0.0-x86_64.AppImage`](./ByteSweep-1.0.0-x86_64.AppImage) | 6.5 MB |
-| **Arch Linux** | [`PKGBUILD`](./PKGBUILD) + [`bytesweep.install`](./bytesweep.install) | Source |
-| **Snap** | [`snap/snapcraft.yaml`](./snap/snapcraft.yaml) | Source |
+| Format | Build Command |
+|--------|---------------|
+| **Debian/Ubuntu** | `./build-deb.sh` |
+| **Fedora/RHEL** | `./build-rpm.sh` |
+| **Arch Linux** | `makepkg -si` (uses [`PKGBUILD`](./PKGBUILD)) |
+| **AppImage** | `./build-appimage.sh` |
+| **Snap** | `snapcraft` (uses [`snap/snapcraft.yaml`](./snap/snapcraft.yaml)) |
 
-### Debian / Ubuntu / Linux Mint / Pop!_OS
-
-```bash
-wget https://github.com/iu2vwk-ita/swiftserver/raw/main/bytesweep_1.0.0_all.deb
-sudo dpkg -i bytesweep_1.0.0_all.deb
-```
-
-### Fedora / RHEL / CentOS / Rocky Linux
+### Universal install script (any Linux)
 
 ```bash
-wget https://github.com/iu2vwk-ita/swiftserver/raw/main/bytesweep-1.0.0-1.noarch.rpm
-sudo rpm -i bytesweep-1.0.0-1.noarch.rpm
-```
-
-### AppImage (any Linux)
-
-```bash
-wget https://github.com/iu2vwk-ita/swiftserver/raw/main/ByteSweep-1.0.0-x86_64.AppImage
-chmod +x ByteSweep-1.0.0-x86_64.AppImage
-./ByteSweep-1.0.0-x86_64.AppImage
-```
-
-### Arch Linux
-
-```bash
-git clone https://github.com/iu2vwk-ita/swiftserver.git
-cd swiftserver
-makepkg -si
+curl -sSL https://raw.githubusercontent.com/iu2vwk-ita/swiftserver/main/install.sh | sudo bash
 ```
 
 ### Universal script (any Linux)

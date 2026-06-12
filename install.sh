@@ -5,7 +5,7 @@
 
 set -e
 
-VERSION="1.0.0"
+VERSION="2.0.0"
 INSTALL_DIR="/opt/server-monitor"
 SERVICE_NAME="bytesweep"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -61,40 +61,6 @@ echo "║         ByteSweep Installer v${VERSION}                ║"
 echo "║         $(printf '%-40s' "Detected: ${DISTRO}") ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
-
-# ── Prefer distro-native packages when available ──
-
-check_and_offer_package() {
-    case "$DISTRO" in
-        debian|ubuntu|linuxmint|pop|elementary|kali|raspbian|zorin)
-            if [ -f "$SCRIPT_DIR/bytesweep_${VERSION}_all.deb" ]; then
-                echo "   Debian package found. For clean install/removal, use:"
-                echo "   sudo dpkg -i bytesweep_${VERSION}_all.deb"
-                echo ""
-                echo "   To build from source: ./build-deb.sh"
-                echo ""
-            fi
-            ;;
-        fedora|rhel|centos|rocky|almalinux|ol|sangoma)
-            if [ -f "$SCRIPT_DIR/bytesweep-${VERSION}"*.rpm ]; then
-                echo "   RPM package found. For clean install/removal, use:"
-                echo "   sudo rpm -i bytesweep-${VERSION}*.rpm"
-                echo ""
-                echo "   To build from source: ./build-rpm.sh"
-                echo ""
-            fi
-            ;;
-        arch|manjaro|endeavouros|garuda)
-            if [ -f "$SCRIPT_DIR/PKGBUILD" ]; then
-                echo "   Arch PKGBUILD found. For clean install/removal, use:"
-                echo "   makepkg -si"
-                echo ""
-            fi
-            ;;
-    esac
-}
-
-check_and_offer_package
 
 echo "Proceeding with direct script install..."
 echo ""
