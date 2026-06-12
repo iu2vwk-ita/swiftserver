@@ -1220,7 +1220,10 @@
                 html += '<div style="margin-top:8px;font-size:12px;color:var(--text-secondary);margin-bottom:4px">Listening Ports:</div>';
                 html += '<div class="port-list">';
                 data.listening.forEach(function(p) {
-                    html += '<div class="port-entry"><span><span class="port">:' + p.port + '</span> (' + p.protocol + ')</span><span class="addr">' + (p.process || p.address) + '</span></div>';
+                    var addr = p.address || '0.0.0.0';
+                    var port = p.port || '?';
+                    var proc = p.process || '';
+                    html += '<div class="port-entry"><span><span class="port">:' + escHtml(port) + '</span> (' + (p.protocol || 'tcp') + ')</span><span class="addr">' + escHtml(proc || addr) + '</span></div>';
                 });
                 html += '</div>';
             }
@@ -1228,7 +1231,9 @@
                 html += '<div style="margin-top:12px;font-size:12px;color:var(--text-secondary);margin-bottom:4px">Established Connections:</div>';
                 html += '<div class="port-list">';
                 data.established.slice(0, 15).forEach(function(p) {
-                    html += '<div class="port-entry"><span>' + p.local_address + ':<span class="port">' + p.local_port + '</span> &rarr; ' + p.remote_address + ':' + p.remote_port + '</span></div>';
+                    var local = (p.local_address || p.address || '?') + ':' + (p.local_port || p.port || '?');
+                    var remote = p.remote_address ? (p.remote_address + ':' + p.remote_port) : '';
+                    html += '<div class="port-entry"><span>' + escHtml(local) + (remote ? ' &rarr; ' + escHtml(remote) : '') + '</span></div>';
                 });
                 html += '</div>';
             }
@@ -1236,7 +1241,9 @@
                 html += '<div style="margin-top:12px;font-size:12px;color:var(--text-secondary);margin-bottom:4px">Recent Connections:</div>';
                 html += '<div class="port-list">';
                 data.recent.forEach(function(p) {
-                    html += '<div class="port-entry"><span>' + p.local_address + ':<span class="port">' + p.local_port + '</span> &rarr; <span style="color:var(--warning)">' + p.remote_address + ':' + p.remote_port + '</span></span></div>';
+                    var local = escHtml((p.local_address || p.address || '?')) + ':<span class="port">' + escHtml(p.local_port || p.port || '?') + '</span>';
+                    var remote = p.remote_address ? (' &rarr; <span style="color:var(--warning)">' + escHtml(p.remote_address) + ':' + escHtml(p.remote_port || '') + '</span>') : '';
+                    html += '<div class="port-entry"><span>' + local + remote + '</span></div>';
                 });
                 html += '</div>';
             }
