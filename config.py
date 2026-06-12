@@ -31,5 +31,24 @@ MINING_PATTERNS = ["xmrig", "cpuminer", "minergate", "t-rex", "phoenixminer",
 # Port scanning: how recent is "recent" in seconds
 RECENT_PORT_THRESHOLD = 300
 
+# --- Scheduled Scanning ---
+# Run forensic scan every N seconds (0 = disabled)
+SCHEDULED_SCAN_INTERVAL = 0
+# Webhook URL for alerts (Telegram bot or generic webhook)
+# Telegram format: https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=<CHAT_ID>
+ALERT_WEBHOOK_URL = None
+
+# --- Auto-Kill Miners ---
+# Automatically kill processes identified as known crypto miners
+AUTO_KILL_MINERS = False
+
+# --- Integrity Monitor ---
+# Files to monitor for changes (SHA256 baseline check)
+INTEGRITY_FILES = [
+    "/etc/passwd", "/etc/shadow", "/etc/group", "/etc/hosts",
+    "/etc/ssh/sshd_config", "/etc/sudoers", "/etc/crontab",
+    "/bin/ls", "/bin/ps", "/usr/bin/ssh", "/usr/bin/systemctl",
+]
+
 # Log directory
 LOG_DIR = "/opt/server-monitor/logs"

@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 
 import cleanup
 import security
+import advanced
 
 app = Flask(__name__)
 sock = Sock(app)
@@ -674,6 +675,9 @@ def mine_detect():
     cpu_threshold = app.config.get('MINING_CPU_THRESHOLD', 50)
     patterns = app.config.get('MINING_PATTERNS', None)
     result = security.detect_mining(cpu_threshold=cpu_threshold, known_patterns=patterns)
+    # Auto-kill if enabled
+    kill_result = advanced.auto_kill_miners_if_enabled(result)
+    result["auto_kill"] = kill_result
     return jsonify(result)
 
 
@@ -687,6 +691,101 @@ def security_ports():
 @app.route("/api/security/forensic-scan")
 def forensic_scan():
     result = security.deep_forensic_scan()
+    return jsonify(result)
+
+
+# ── Scheduled Scan API ──────────────────────────────────────────
+
+@app.route("/api/security/scheduler")
+def scheduler_status_api():
+    return jsonify(advanced.scheduler_status())
+
+
+@app.route("/api/security/scheduler/start", methods=["POST"])
+def scheduler_start():
+    data = request.get_json(silent=True) or {}
+    interval = data.get("interval", 3600)
+    webhook = data.get("webhook_url")
+    result = advanced.start_scheduler(interval_seconds=int(interval), alert_webhook=webhook)
+    return jsonify(result)
+
+
+@app.route("/api/security/scheduler/stop", methods=["POST"])
+def scheduler_stop():
+    result = advanced.stop_scheduler()
+    return jsonify(result)
+
+
+# ── Firewall API ────────────────────────────────────────────────
+
+@app.route("/api/security/firewall/rules")
+def firewall_rules():
+    return jsonify(advanced.firewall_list_rules())
+
+
+@app.route("/api/security/firewall/block", methods=["POST"])
+def firewall_block():
+    data = request.get_json(silent=True) or {}
+    ip = data.get("ip", "").strip()
+    port = data.get("port")
+    if not ip:
+        return jsonify({"success": False, "error": "IP required"}), 400
+    result = advanced.firewall_block_ip(ip, port=port)
+    return jsonify(result)
+
+
+@app.route("/api/security/firewall/unblock", methods=["POST"])
+def firewall_unblock():
+    data = request.get_json(silent=True) or {}
+    ip = data.get("ip", "").strip()
+    if not ip:
+        return jsonify({"success": False, "error": "IP required"}), 400
+    result = advanced.firewall_unblock_ip(ip)
+    return jsonify(result)
+
+
+# ── Auto-Kill Miner API ─────────────────────────────────────────
+
+@app.route("/api/security/auto-kill")
+def auto_kill_status():
+    return jsonify(advanced.get_auto_kill())
+
+
+@app.route("/api/security/auto-kill", methods=["POST"])
+def auto_kill_toggle():
+    data = request.get_json(silent=True) or {}
+    enabled = data.get("enabled", False)
+    result = advanced.set_auto_kill(enabled)
+    return jsonify(result)
+
+
+# ── Integrity Monitor API ───────────────────────────────────────
+
+@app.route("/api/security/integrity/baseline", methods=["POST"])
+def integrity_baseline():
+    result = advanced.integrity_baseline()
+    return jsonify(result)
+
+
+@app.route("/api/security/integrity/check")
+def integrity_check():
+    result = advanced.integrity_check()
+    return jsonify(result)
+
+
+# ── Log Viewer API ──────────────────────────────────────────────
+
+@app.route("/api/security/logs")
+def log_viewer_list():
+    return jsonify(advanced.log_viewer_list())
+
+
+@app.route("/api/security/logs/<log_name>")
+def log_viewer_read(log_name):
+    lines = request.args.get("lines", 100, type=int)
+    search = request.args.get("search")
+    offset = request.args.get("offset", 0, type=int)
+    result = advanced.log_viewer_read(log_name, lines=min(lines, 500), search=search, offset=offset)
     return jsonify(result)
 
 
@@ -816,7 +915,8 @@ if __name__ == "__main__":
                         LOG_LEVEL, ACCESS_LOG, ACCESS_LOG_FILE, PANEL_PASSWORD,
                         SESSION_EXPIRY_HOURS, VIRUS_SCAN_PATHS, VIRUS_SCAN_TIMEOUT,
                         MINING_CPU_THRESHOLD, MINING_PATTERNS, RECENT_PORT_THRESHOLD,
-                        LOG_DIR)
+                        LOG_DIR, SCHEDULED_SCAN_INTERVAL, ALERT_WEBHOOK_URL,
+                        AUTO_KILL_MINERS)
 
     log_level = getattr(logging, LOG_LEVEL.upper(), logging.INFO)
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
@@ -836,6 +936,16 @@ if __name__ == "__main__":
 
     # Load runtime settings
     _load_settings()
+
+    # Auto-start scheduled scanner if configured
+    if SCHEDULED_SCAN_INTERVAL > 0:
+        advanced.start_scheduler(interval_seconds=SCHEDULED_SCAN_INTERVAL, alert_webhook=ALERT_WEBHOOK_URL)
+        logging.info(f"Scheduled scan started: every {SCHEDULED_SCAN_INTERVAL}s")
+
+    # Auto-enable miner killing if configured
+    if AUTO_KILL_MINERS:
+        advanced.set_auto_kill(True)
+        logging.info("Auto-kill miners: ENABLED")
 
     pw = _get_password()
     if pw:

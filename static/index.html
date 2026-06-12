@@ -1001,6 +1001,59 @@
                 '</div>' +
             '</div>';
 
+            // Advanced Panel
+            html += '<div class="info-section" id="advanced-panel">' +
+                '<h3>&#128640; Advanced</h3>' +
+                '<div class="security-tabs" style="margin-bottom:16px">' +
+                    '<div class="security-tab active" onclick="switchAdvTab(\'scheduler\')">Scheduler</div>' +
+                    '<div class="security-tab" onclick="switchAdvTab(\'firewall\')">Firewall</div>' +
+                    '<div class="security-tab" onclick="switchAdvTab(\'integrity\')">Integrity</div>' +
+                    '<div class="security-tab" onclick="switchAdvTab(\'logs\')">Logs</div>' +
+                '</div>' +
+                '<div class="security-tab-content active" id="adv-scheduler">' +
+                    '<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px">' +
+                        '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:13px">Scan every:</span>' +
+                        '<input type="number" id="sched-interval" value="3600" min="300" step="300" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-size:12px;width:80px">' +
+                        '<span style="font-size:11px;color:var(--text-secondary)">sec</span></div>' +
+                        '<input type="text" id="sched-webhook" placeholder="Telegram/Discord webhook URL" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-size:12px;width:280px">' +
+                        '<button class="btn btn-sm btn-accent" id="sched-start-btn" onclick="startScheduler()">Start</button>' +
+                        '<button class="btn btn-sm btn-danger" id="sched-stop-btn" onclick="stopScheduler()" style="display:none">Stop</button>' +
+                    '</div>' +
+                    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">' +
+                        '<span style="font-size:12px">Auto-kill miners:</span>' +
+                        '<button class="btn btn-sm" id="autokill-btn" onclick="toggleAutoKill()">OFF</button>' +
+                        '<span id="sched-status" style="font-size:11px;color:var(--text-secondary)"></span>' +
+                    '</div>' +
+                    '<div id="sched-msg" style="font-size:12px;color:var(--text-secondary)"></div>' +
+                '</div>' +
+                '<div class="security-tab-content" id="adv-firewall">' +
+                    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">' +
+                        '<input type="text" id="fw-ip" placeholder="IP to block" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-size:12px;width:140px">' +
+                        '<input type="number" id="fw-port" placeholder="Port" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-size:12px;width:65px">' +
+                        '<button class="btn btn-sm btn-danger" onclick="blockIP()">Block</button>' +
+                        '<button class="btn btn-sm" onclick="loadFirewall()">&#8635;</button>' +
+                    '</div>' +
+                    '<div id="firewall-rules" style="font-size:11px;font-family:monospace;max-height:300px;overflow-y:auto"></div>' +
+                '</div>' +
+                '<div class="security-tab-content" id="adv-integrity">' +
+                    '<div style="display:flex;gap:8px;margin-bottom:12px">' +
+                        '<button class="btn btn-sm btn-accent" onclick="createBaseline()">Create Baseline</button>' +
+                        '<button class="btn btn-sm btn-warning" onclick="checkIntegrity()">Check Integrity</button>' +
+                    '</div>' +
+                    '<div id="integrity-result" style="font-size:12px;font-family:monospace;max-height:300px;overflow-y:auto"></div>' +
+                '</div>' +
+                '<div class="security-tab-content" id="adv-logs">' +
+                    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">' +
+                        '<select id="log-select" onchange="loadLog()" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-size:12px">' +
+                            '<option value="access">Access</option><option value="auth">Auth</option><option value="syslog">Syslog</option><option value="cleanup">Cleanup</option>' +
+                        '</select>' +
+                        '<input type="text" id="log-search" placeholder="Search..." onkeydown="if(event.key==\'Enter\')loadLog()" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--text-primary);font-size:12px;width:140px">' +
+                        '<button class="btn btn-sm" onclick="loadLog()">Load</button>' +
+                    '</div>' +
+                    '<div id="log-content" style="font-size:11px;font-family:monospace;background:var(--bg-secondary);border-radius:8px;padding:10px;max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-all"></div>' +
+                '</div>' +
+            '</div>';
+
             // File Manager
             html += '<div class="file-manager" id="file-manager">' +
                 '<h3>&#128193; File Manager</h3>' +
@@ -1331,6 +1384,189 @@
                     btn.textContent = '\u2715';
                 }
             }
+        }
+
+        // ── Advanced: Tabs ──
+
+        function switchAdvTab(tab) {
+            document.querySelectorAll('#advanced-panel .security-tab').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelectorAll('#advanced-panel .security-tab-content').forEach(function(c) { c.classList.remove('active'); });
+            var tabEl = document.querySelector('#advanced-panel .security-tab[onclick*="' + tab + '"]');
+            if (tabEl) tabEl.classList.add('active');
+            var contentEl = document.getElementById('adv-' + tab);
+            if (contentEl) contentEl.classList.add('active');
+            if (tab === 'firewall') loadFirewall();
+            if (tab === 'logs') loadLog();
+            if (tab === 'scheduler') loadSchedulerStatus();
+        }
+
+        // ── Scheduler + Auto-Kill ──
+
+        async function loadSchedulerStatus() {
+            var s = await fetchJSON(API + '/security/scheduler');
+            var ak = await fetchJSON(API + '/security/auto-kill');
+            var badge = document.getElementById('sched-badge');
+            var startBtn = document.getElementById('sched-start-btn');
+            var stopBtn = document.getElementById('sched-stop-btn');
+            var autokillBtn = document.getElementById('autokill-btn');
+            var statusEl = document.getElementById('sched-status');
+
+            if (s && s.running) {
+                if (badge) { badge.textContent = 'RUNNING'; badge.className = 'badge badge-success'; }
+                if (startBtn) startBtn.style.display = 'none';
+                if (stopBtn) stopBtn.style.display = 'inline-block';
+                if (statusEl) statusEl.textContent = 'Every ' + s.interval + 's, last: ' + (s.last_run || '-');
+            } else {
+                if (badge) { badge.textContent = 'STOPPED'; badge.className = 'badge badge-info'; }
+                if (startBtn) startBtn.style.display = 'inline-block';
+                if (stopBtn) stopBtn.style.display = 'none';
+                if (statusEl) statusEl.textContent = '';
+            }
+            if (ak && autokillBtn) {
+                autokillBtn.textContent = ak.enabled ? 'ON' : 'OFF';
+                autokillBtn.className = ak.enabled ? 'btn btn-sm btn-danger' : 'btn btn-sm';
+            }
+        }
+
+        async function startScheduler() {
+            var interval = parseInt(document.getElementById('sched-interval').value) || 3600;
+            var webhook = document.getElementById('sched-webhook').value.trim();
+            var r = await fetchJSON(API + '/security/scheduler/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({interval: interval, webhook_url: webhook || null})
+            });
+            document.getElementById('sched-msg').innerHTML = '<span style="color:' + (r && r.success ? 'var(--success)' : 'var(--danger)') + '">' + (r ? r.message : 'Error') + '</span>';
+            loadSchedulerStatus();
+        }
+
+        async function stopScheduler() {
+            var r = await fetchJSON(API + '/security/scheduler/stop', {method: 'POST'});
+            document.getElementById('sched-msg').innerHTML = '<span style="color:var(--success)">' + (r ? r.message : 'Stopped') + '</span>';
+            loadSchedulerStatus();
+        }
+
+        async function toggleAutoKill() {
+            var btn = document.getElementById('autokill-btn');
+            var current = btn.textContent === 'ON';
+            var r = await fetchJSON(API + '/security/auto-kill', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({enabled: !current})
+            });
+            if (r && r.success) {
+                btn.textContent = r.enabled ? 'ON' : 'OFF';
+                btn.className = r.enabled ? 'btn btn-sm btn-danger' : 'btn btn-sm';
+            }
+        }
+
+        // ── Firewall ──
+
+        async function loadFirewall() {
+            var el = document.getElementById('firewall-rules');
+            el.innerHTML = 'Loading...';
+            var data = await fetchJSON(API + '/security/firewall/rules');
+            if (!data || !data.success) {
+                el.innerHTML = '<span style="color:var(--danger)">' + (data ? data.error : 'Error') + '</span>';
+                return;
+            }
+            if (data.count === 0) {
+                el.innerHTML = '<span style="color:var(--text-secondary)">No iptables rules (empty firewall)</span>';
+                return;
+            }
+            var html = '';
+            data.rules.forEach(function(r) {
+                html += '<div style="padding:2px 0;border-bottom:1px solid var(--border)">' +
+                    '<span class="badge badge-info">' + r.chain + '</span> ' + escHtml(r.rule) + '</div>';
+            });
+            el.innerHTML = html;
+        }
+
+        async function blockIP() {
+            var ip = document.getElementById('fw-ip').value.trim();
+            var port = document.getElementById('fw-port').value.trim();
+            if (!ip) return;
+            var body = {ip: ip};
+            if (port) body.port = parseInt(port);
+            var r = await fetchJSON(API + '/security/firewall/block', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            if (r && r.success) { loadFirewall(); document.getElementById('fw-ip').value = ''; }
+            else alert('Block failed: ' + (r ? r.error : 'Error'));
+        }
+
+        // ── Integrity ──
+
+        async function createBaseline() {
+            var el = document.getElementById('integrity-result');
+            el.innerHTML = '<span class="spinner"></span> Creating baseline...';
+            var r = await fetchJSON(API + '/security/integrity/baseline', {method: 'POST'});
+            if (r && r.success) {
+                el.innerHTML = '<span style="color:var(--success)">Baseline created: ' + r.files_hashed + ' files hashed at ' + r.timestamp + '</span>';
+            } else {
+                el.innerHTML = '<span style="color:var(--danger)">Failed</span>';
+            }
+        }
+
+        async function checkIntegrity() {
+            var el = document.getElementById('integrity-result');
+            el.innerHTML = '<span class="spinner"></span> Checking...';
+            var r = await fetchJSON(API + '/security/integrity/check');
+            if (!r) { el.innerHTML = '<span style="color:var(--danger)">Failed</span>'; return; }
+            var html = '';
+            if (!r.has_baseline) {
+                html += '<div style="color:var(--warning)">No baseline &mdash; create one first</div>';
+            } else if (r.changed.length === 0 && r.missing.length === 0) {
+                html += '<div style="color:var(--success)">All ' + r.total + ' files OK</div>';
+            } else {
+                if (r.changed.length > 0) {
+                    html += '<div style="color:var(--danger)"><b>' + r.changed.length + ' file(s) modified:</b></div>';
+                    r.changed.forEach(function(f) {
+                        html += '<div style="margin-left:8px;color:var(--danger)">' + f.path + ' (' + f.old_hash + ' &rarr; ' + f.new_hash + ')</div>';
+                    });
+                }
+                if (r.missing.length > 0) {
+                    html += '<div style="color:var(--warning);margin-top:4px"><b>' + r.missing.length + ' file(s) missing:</b></div>';
+                    r.missing.forEach(function(f) {
+                        html += '<div style="margin-left:8px;color:var(--warning)">' + f.path + ' (' + f.status + ')</div>';
+                    });
+                }
+                html += '<div style="color:var(--success);margin-top:4px">' + r.ok + ' files unchanged</div>';
+            }
+            el.innerHTML = html;
+        }
+
+        // ── Log Viewer ──
+
+        async function loadLog() {
+            var el = document.getElementById('log-content');
+            var logName = document.getElementById('log-select').value;
+            var search = document.getElementById('log-search').value.trim();
+            el.innerHTML = 'Loading...';
+            var params = '?lines=200';
+            if (search) params += '&search=' + encodeURIComponent(search);
+            var data = await fetchJSON(API + '/security/logs/' + logName + params);
+            if (!data || !data.success) {
+                el.innerHTML = '<span style="color:var(--danger)">' + (data ? data.error : 'Error') + '</span>';
+                return;
+            }
+            if (data.lines.length === 0) {
+                el.innerHTML = '<span style="color:var(--text-secondary)">No lines' + (search ? ' matching "' + escHtml(search) + '"' : '') + '</span>';
+                return;
+            }
+            var html = '<div style="color:var(--text-secondary);margin-bottom:4px">' + data.returned_lines + ' of ' + data.filtered_lines + ' lines</div>';
+            data.lines.forEach(function(line) {
+                if (search) {
+                    var regex = new RegExp('(' + search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+                    line = escHtml(line).replace(regex, '<mark style="background:var(--warning);color:#000">$1</mark>');
+                } else {
+                    line = escHtml(line);
+                }
+                html += '<div style="border-bottom:1px solid var(--border);padding:1px 0">' + line + '</div>';
+            });
+            el.innerHTML = html;
         }
 
         // ── Settings ──
