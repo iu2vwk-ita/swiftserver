@@ -44,6 +44,11 @@ _runtime_salt = None       # Per-server salt for password hashing
 SETTINGS_FILE = "/opt/server-monitor/logs/settings.json"
 MAX_SESSIONS = 100
 
+# Metrics cache — updated by background thread, served instantly
+_metrics_cache = {}
+_metrics_lock = threading.Lock()
+METRICS_INTERVAL = 2  # seconds between cache updates
+
 # Rate limiting
 _login_attempts = {}       # ip -> [(timestamp, ...)]
 _lock_login = threading.Lock()
@@ -296,7 +301,80 @@ def settings_post():
     return jsonify({"success": False, "error": f"Unknown action: {action}"}), 400
 
 
-# ── Utility functions ───────────────────────────────────────────
+# ── Metrics collection ──────────────────────────────────────────
+
+def _metrics_worker():
+    """Background thread: collect metrics periodically and update cache."""
+    # Prime psutil CPU counters with a short blocking call
+    psutil.cpu_percent(interval=0.1, percpu=False)
+    psutil.cpu_percent(interval=0.1, percpu=True)
+
+    while True:
+        try:
+            now = datetime.now()
+            cpu = psutil.cpu_percent(interval=0, percpu=False)
+            cpu_cores = psutil.cpu_percent(interval=0, percpu=True)
+
+            mem = psutil.virtual_memory()
+            ram = {"total": mem.total, "used": mem.used, "free": mem.free, "percent": mem.percent}
+
+            load = psutil.getloadavg()
+            load_dict = {"1min": load[0], "5min": load[1], "15min": load[2]}
+
+            net = psutil.net_io_counters()
+            network = {
+                "bytes_sent": net.bytes_sent, "bytes_recv": net.bytes_recv,
+                "packets_sent": net.packets_sent, "packets_recv": net.packets_recv,
+                "errin": net.errin, "errout": net.errout,
+                "dropin": net.dropin, "dropout": net.dropout,
+            }
+
+            processes = []
+            for p in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+                try:
+                    processes.append({
+                        "pid": p.info['pid'], "name": p.info['name'],
+                        "cpu": p.info['cpu_percent'] or 0, "mem": p.info['memory_percent'] or 0,
+                    })
+                except Exception:
+                    pass
+            processes.sort(key=lambda x: x['cpu'], reverse=True)
+
+            with _metrics_lock:
+                _metrics_cache["timestamp"] = now.isoformat()
+                _metrics_cache["cpu"] = cpu
+                _metrics_cache["cpu_cores"] = cpu_cores
+                _metrics_cache["ram"] = ram
+                _metrics_cache["load"] = load_dict
+                _metrics_cache["network"] = network
+                _metrics_cache["top_processes"] = processes[:15]
+                _metrics_cache["disk"] = _collect_disk()
+                _metrics_cache["network_ifaces"] = _collect_network_ifaces()
+
+        except Exception:
+            pass
+
+        time.sleep(METRICS_INTERVAL)
+
+
+# Start background collector immediately
+_thread = threading.Thread(target=_metrics_worker, daemon=True)
+_thread.start()
+
+
+# ── Fast cached metric getters ──────────────────────────────────
+
+def _get_metric(key):
+    with _metrics_lock:
+        return _metrics_cache.get(key)
+
+def _collect_disk():
+    """Fast disk collection - not cached in old function."""
+    return get_disk()
+
+def _collect_network_ifaces():
+    """Fast network ifaces collection."""
+    return get_network_ifaces()
 
 def _safe_path(path):
     """Normalize and validate path to prevent traversal attacks."""
@@ -520,44 +598,40 @@ def system_info():
         "memory_total": psutil.virtual_memory().total,
         "disk_total": sum(d['total'] for d in get_disk()),
         "uptime": get_uptime(),
-        "load": get_load()
+        "load": _get_metric("load"),
     })
 
 
 @app.route("/api/metrics")
 def metrics():
-    return jsonify({
-        "timestamp": datetime.now().isoformat(),
-        "cpu": get_cpu(),
-        "cpu_cores": get_cpu_cores(),
-        "ram": get_ram(),
-        "disk": get_disk(),
-        "network": get_network(),
-        "network_ifaces": get_network_ifaces(),
-        "load": get_load(),
-        "temps": get_temps() if app.config.get('ENABLE_TEMPS') else [],
-        "top_processes": get_top_processes()
-    })
+    with _metrics_lock:
+        data = dict(_metrics_cache)
+    data["temps"] = get_temps() if app.config.get('ENABLE_TEMPS') else []
+    return jsonify(data)
 
 
 @app.route("/api/cpu")
 def cpu_data():
-    return jsonify({"cpu": get_cpu(), "cores": get_cpu_cores(), "load": get_load()})
+    return jsonify({
+        "cpu": _get_metric("cpu"),
+        "cores": _get_metric("cpu_cores"),
+        "load": _get_metric("load"),
+    })
 
 
 @app.route("/api/ram")
 def ram_data():
-    return jsonify(get_ram())
+    return jsonify(_get_metric("ram"))
 
 
 @app.route("/api/disk")
 def disk_data():
-    return jsonify(get_disk())
+    return jsonify(_get_metric("disk") or get_disk())
 
 
 @app.route("/api/network")
 def network_data():
-    return jsonify(get_network())
+    return jsonify(_get_metric("network"))
 
 
 @app.route("/api/cleanup/status")
