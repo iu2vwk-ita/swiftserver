@@ -744,6 +744,34 @@ def firewall_unblock():
     return jsonify(result)
 
 
+# ── Geolocation API ─────────────────────────────────────────────
+
+@app.route("/api/security/geolocate")
+def geolocate_ip():
+    ip = request.args.get("ip", "").strip()
+    if not ip:
+        return jsonify({"success": False, "error": "IP required"}), 400
+    if ip.startswith("127.") or ip.startswith("10.") or ip.startswith("192.168.") or ip.startswith("172.16.") or ip == "0.0.0.0" or ip == "::1":
+        return jsonify({"success": False, "error": "Private/reserved IP"}), 400
+    try:
+        import urllib.request as _ur
+        req = _ur.Request(f"http://ip-api.com/json/{ip}?fields=country,city,regionName,lat,lon,isp,org",
+                          headers={"User-Agent": "ByteSweep/2.0"})
+        with _ur.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+        if data.get("status") == "fail":
+            return jsonify({"success": False, "error": data.get("message", "Unknown IP")})
+        return jsonify({
+            "success": True, "ip": ip,
+            "country": data.get("country", ""), "city": data.get("city", ""),
+            "region": data.get("regionName", ""), "lat": data.get("lat"),
+            "lon": data.get("lon"), "isp": data.get("isp", ""), "org": data.get("org", ""),
+            "map_url": f"https://www.openstreetmap.org/?mlat={data.get('lat')}&mlon={data.get('lon')}&zoom=10" if data.get("lat") else None,
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ── Auto-Kill Miner API ─────────────────────────────────────────
 
 @app.route("/api/security/auto-kill")
