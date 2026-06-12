@@ -27,6 +27,23 @@ _auto_kill_miners = False
 _integrity_hashes = {}
 INTEGRITY_FILE = "/opt/server-monitor/logs/integrity.json"
 SCHEDULER_STATE_FILE = "/opt/server-monitor/logs/scheduler.json"
+ADVANCED_STATE_FILE = "/opt/server-monitor/logs/advanced_state.json"
+
+
+def load_persisted_state():
+    """Load auto-kill and scheduler state from disk. Call on startup."""
+    global _auto_kill_miners
+    state = _load_json(ADVANCED_STATE_FILE)
+    if "auto_kill" in state:
+        _auto_kill_miners = bool(state["auto_kill"])
+
+
+def _save_advanced_state():
+    _save_json(ADVANCED_STATE_FILE, {
+        "auto_kill": _auto_kill_miners,
+        "scheduler_running": _scheduler_running,
+        "scheduler_interval": _scheduler_interval,
+    })
 
 
 # ── 1. Scheduled Scan Engine ────────────────────────────────────
@@ -61,6 +78,7 @@ def start_scheduler(interval_seconds=3600, alert_webhook=None):
     _scheduler_thread = threading.Thread(target=_scan_loop, daemon=True)
     _scheduler_thread.start()
     _persist_scheduler_state(False, None)
+    _save_advanced_state()
     return {"success": True, "message": f"Scheduler started, interval: {interval_seconds}s"}
 
 
@@ -68,6 +86,7 @@ def stop_scheduler():
     global _scheduler_running
     _scheduler_running = False
     _persist_scheduler_state(False, "stopped")
+    _save_advanced_state()
     return {"success": True, "message": "Scheduler stopped"}
 
 
@@ -190,6 +209,7 @@ def get_auto_kill():
 def set_auto_kill(enabled):
     global _auto_kill_miners
     _auto_kill_miners = bool(enabled)
+    _save_advanced_state()
     return {"success": True, "enabled": _auto_kill_miners}
 
 

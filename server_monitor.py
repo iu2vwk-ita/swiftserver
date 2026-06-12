@@ -964,6 +964,7 @@ if __name__ == "__main__":
 
     # Load runtime settings
     _load_settings()
+    advanced.load_persisted_state()
 
     # Auto-start scheduled scanner if configured
     if SCHEDULED_SCAN_INTERVAL > 0:
