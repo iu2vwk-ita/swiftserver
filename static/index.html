@@ -660,6 +660,11 @@
             return n != null ? Number(n).toFixed(d) : '-';
         }
 
+        function escHtml(str) {
+            if (str == null) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+        }
+
         function fmtBytes(bytes) {
             if (bytes >= 1099511627776) return (bytes / 1099511627776).toFixed(1) + ' TB';
             if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(1) + ' GB';
@@ -833,7 +838,7 @@
                     '<span class="disk-alert" id="disk-alert">&#9888; Disk above 90% &mdash; run cleanup</span></div>' +
                     '<div class="header-info">' +
                         '<span class="uptime-badge"><span class="status-dot"></span>' + uptimeStr + '</span>' +
-                        '<span class="server-name">' + (sys.hostname || 'unknown') + ' &middot; ' + sys.platform + '</span>' +
+                        '<span class="server-name">' + escHtml(sys.hostname || 'unknown') + ' &middot; ' + escHtml(sys.platform) + '</span>' +
                         logoutBtn +
                     '</div>' +
                 '</div>' +
@@ -929,7 +934,7 @@
                     '<thead><tr><th>PID</th><th>Name</th><th>CPU%</th><th>Memory%</th><th style="width:60px"></th></tr></thead><tbody id="proc-body">';
             if (m.top_processes && m.top_processes.length > 0) {
                 m.top_processes.slice(0, 12).forEach(function(p) {
-                    html += '<tr><td>' + p.pid + '</td><td>' + p.name + '</td><td>' + fmt(p.cpu, 1) + '%</td><td>' + fmt(p.mem, 1) + '%</td>' +
+                    html += '<tr><td>' + p.pid + '</td><td>' + escHtml(p.name) + '</td><td>' + fmt(p.cpu, 1) + '%</td><td>' + fmt(p.mem, 1) + '%</td>' +
                         '<td><button class="kill-btn" onclick="killProcess(' + p.pid + ',this)" title="Kill process">&#10005;</button></td></tr>';
                 });
             } else {
@@ -1198,7 +1203,7 @@
                 '<thead><tr><th>PID</th><th>Name</th><th>CPU%</th><th>Reason</th><th></th></tr></thead><tbody>';
             data.suspicious.forEach(function(p) {
                 var reasonBadge = p.reason === 'known_miner' ? '<span class="badge badge-danger">known miner</span>' : '<span class="badge badge-warning">high CPU</span>';
-                html += '<tr><td>' + p.pid + '</td><td>' + p.name + '</td><td>' + fmt(p.cpu, 1) + '%</td><td>' + reasonBadge + '</td>' +
+                html += '<tr><td>' + p.pid + '</td><td>' + escHtml(p.name) + '</td><td>' + fmt(p.cpu, 1) + '%</td><td>' + reasonBadge + '</td>' +
                     '<td><button class="kill-btn" style="opacity:1" onclick="killProcess(' + p.pid + ',this)">&#10005; Kill</button></td></tr>';
             });
             html += '</tbody></table>';
@@ -1566,6 +1571,10 @@
 
             var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             var wsUrl = proto + '//' + window.location.host + '/ws/terminal';
+            if (AUTH_TOKEN) {
+                wsUrl += '?token=' + encodeURIComponent(AUTH_TOKEN);
+            }
+
             termSocket = new WebSocket(wsUrl);
             termSocket.binaryType = 'arraybuffer';
             termSocket.onopen = function() {
@@ -1613,7 +1622,7 @@
                 procBody.innerHTML = '';
                 m.top_processes.slice(0, 12).forEach(function(p) {
                     var tr = document.createElement('tr');
-                    tr.innerHTML = '<td>' + p.pid + '</td><td>' + p.name + '</td><td>' + fmt(p.cpu, 1) + '%</td><td>' + fmt(p.mem, 1) + '%</td>' +
+                    tr.innerHTML = '<td>' + p.pid + '</td><td>' + escHtml(p.name) + '</td><td>' + fmt(p.cpu, 1) + '%</td><td>' + fmt(p.mem, 1) + '%</td>' +
                         '<td><button class="kill-btn" onclick="killProcess(' + p.pid + ',this)" title="Kill process">&#10005;</button></td>';
                     procBody.appendChild(tr);
                 });
