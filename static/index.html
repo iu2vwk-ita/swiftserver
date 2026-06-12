@@ -598,17 +598,108 @@
         .badge-info { background: rgba(59,130,246,0.2); color: var(--accent); }
 
         @media (max-width: 768px) {
-            .dashboard { padding: 12px; }
-            .header { flex-direction: column; gap: 12px; }
-            .header h1 { font-size: 20px; }
-            .charts-grid { grid-template-columns: 1fr; gap: 14px; margin-bottom: 20px; }
-            .charts-row { grid-template-columns: 1fr; gap: 14px; margin-bottom: 20px; }
-            .chart-container { height: 140px; }
-            .chart-card { padding: 18px; }
-            .stat-value { font-size: 24px; }
-            .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-            .processes-table { display: block; overflow-x: auto; white-space: nowrap; }
-            .security-tabs { overflow-x: auto; }
+            .dashboard { padding: 8px; }
+            .header { flex-direction: column; gap: 8px; margin-bottom: 16px; padding-bottom: 12px; }
+            .header h1 { font-size: 18px; }
+            .header-info { gap: 8px; }
+            .server-name { font-size: 11px; }
+            .uptime-badge { font-size: 11px; padding: 4px 8px; }
+            .stats-bar { grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 16px; }
+            .stat-card { padding: 10px; border-radius: 8px; }
+            .stat-value { font-size: 20px; }
+            .stat-label { font-size: 10px; }
+            .stat-detail { font-size: 10px; }
+            .charts-grid { grid-template-columns: 1fr; gap: 8px; margin-bottom: 12px; }
+            .charts-row { grid-template-columns: 1fr; gap: 8px; margin-bottom: 12px; }
+            .chart-card { padding: 10px; border-radius: 8px; }
+            .chart-card h3 { font-size: 12px; margin-bottom: 6px; }
+            .chart-container { height: 120px; }
+            .info-section { padding: 12px; margin-bottom: 12px; border-radius: 8px; }
+            .info-section h3 { font-size: 13px; margin-bottom: 8px; }
+            .disk-grid { grid-template-columns: 1fr; gap: 6px; }
+            .disk-item { padding: 8px; }
+            .disk-name { font-size: 11px; }
+            .disk-mount, .disk-info { font-size: 10px; }
+            .network-grid { grid-template-columns: 1fr; gap: 6px; }
+            .network-item { padding: 8px; }
+            .network-name { font-size: 11px; }
+            .network-ip { font-size: 10px; }
+            .temps-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+            .temp-item { padding: 10px; }
+            .temp-label { font-size: 10px; }
+            .temp-value { font-size: 20px; }
+            .processes-table { display: block; overflow-x: auto; white-space: nowrap; font-size: 11px; }
+            .processes-table th, .processes-table td { padding: 6px 8px; font-size: 10px; }
+            .processes-table th { font-size: 9px; }
+            .kill-btn { font-size: 10px; padding: 1px 5px; }
+            .file-manager { padding: 10px; margin-bottom: 12px; }
+            .file-manager h3 { font-size: 13px; margin-bottom: 6px; }
+            .file-toolbar { gap: 4px; }
+            .file-toolbar input { min-width: 100px; font-size: 11px; padding: 4px 6px; flex: 2; }
+            .file-toolbar button { font-size: 10px; padding: 4px 6px; }
+            .file-list { max-height: 250px; }
+            .file-item { font-size: 11px; padding: 4px 6px; gap: 4px; }
+            .file-item .size, .file-item .date { font-size: 9px; min-width: 40px; }
+            .cleanup-panel { padding: 10px; margin-bottom: 12px; }
+            .cleanup-panel h3 { font-size: 13px; margin-bottom: 8px; }
+            .cleanup-grid { grid-template-columns: 1fr; gap: 4px; }
+            .cleanup-item { font-size: 11px; padding: 6px 8px; }
+            .cleanup-item .desc { font-size: 9px; }
+            .cleanup-btn { font-size: 11px; padding: 6px 10px; }
+            .cleanup-run { font-size: 11px; padding: 6px 14px; }
+            .security-tabs { gap: 2px; overflow-x: auto; flex-wrap: nowrap; }
+            .security-tab { font-size: 11px; padding: 5px 10px; }
+            .security-tab-content { font-size: 12px; }
+            .terminal-panel { margin-bottom: 12px; }
+            .terminal-header { padding: 6px 10px; }
+            .terminal-header h3 { font-size: 12px; }
+            .terminal-container { height: 200px; }
+            .footer { font-size: 10px; padding: 10px 0 4px; margin-top: 12px; }
+            .btn { font-size: 11px; padding: 5px 10px; }
+            .btn-sm { font-size: 10px; padding: 3px 7px; }
+            .badge { font-size: 9px; }
+            .spinner { width: 10px; height: 10px; }
+            .login-box { padding: 24px; }
+            .login-box h1 { font-size: 22px; }
+            .login-box input { padding: 8px 12px; font-size: 13px; }
+            .login-box button { padding: 10px; font-size: 13px; }
+            #settings-content { flex-direction: column; align-items: stretch; gap: 8px; }
+            #pw-controls { flex-direction: column; gap: 4px; }
+            #pw-controls input { width: 100%; }
+            #advanced-panel .security-tab { font-size: 10px; padding: 3px 8px; }
+            #sched-webhook { width: 100%; }
+        }
+        @media (max-width: 400px) {
+            .dashboard { padding: 4px; }
+            .header h1 { font-size: 15px; }
+            .stats-bar { grid-template-columns: 1fr 1fr; gap: 4px; }
+            .stat-card { padding: 8px; border-radius: 6px; }
+            .stat-value { font-size: 16px; }
+            .stat-label { font-size: 9px; }
+            .stat-detail { font-size: 9px; }
+            .chart-container { height: 100px; }
+            .chart-card { padding: 8px; }
+            .chart-card h3 { font-size: 10px; }
+            .info-section { padding: 8px; }
+            .info-section h3 { font-size: 11px; }
+            .disk-item, .network-item, .temp-item { padding: 6px; }
+            .temps-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
+            .temp-value { font-size: 16px; }
+            .file-toolbar input { min-width: 50px; font-size: 10px; }
+            .file-item .size, .file-item .date { display: none; }
+            .file-item { font-size: 10px; gap: 2px; }
+            .security-tab { font-size: 9px; padding: 3px 6px; }
+            .terminal-container { height: 150px; }
+            .footer { font-size: 9px; }
+            .btn { font-size: 10px; padding: 4px 8px; }
+            .btn-sm { font-size: 9px; padding: 2px 5px; }
+            .cleanup-item { font-size: 10px; padding: 4px 6px; }
+            .cleanup-item .desc { display: none; }
+            #advanced-panel .security-tab { font-size: 9px; padding: 2px 6px; }
+            #settings-pw, #settings-pw-confirm { width: 100%; font-size: 11px; }
+            #fw-ip { width: 100px; }
+            #fw-port { width: 50px; }
+            #log-search { width: 90px; }
         }
     </style>
 </head>
