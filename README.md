@@ -25,6 +25,73 @@ A lightweight, real-time Linux server monitoring dashboard with integrated disk 
 
 <img width="952" height="893" alt="Screenshot 2026-05-19 095842" src="https://github.com/user-attachments/assets/21185f37-33d4-4063-8346-ed2f9dec3952" />
 
+> **Security Dashboard** — Forensic scan, mining detection, ports, firewall, integrity monitor (v2.1+)
+>
+> <!-- Replace with your screenshot URL: -->
+
+
+
+## Security Features (v2.0+)
+
+ByteSweep includes a full security suite to detect and respond to threats on your server — all from the web dashboard, no SSH required.
+
+### Forensic Scan
+A comprehensive deep scan that checks for indicators of compromise across 10 categories:
+
+| Check | What it detects |
+|-------|----------------|
+| **Hidden Directories** | Suspicious dot-directories in `/bin`, `/etc`, `/tmp`, `/var/tmp` — common malware hiding spots |
+| **Suspicious Binaries** | Large ELF/UPX-packed files in system directories (>10 MB) — typical cryptominer signature |
+| **SSH Backdoors** | Non-standard SSH ports, `PermitRootLogin yes`, suspicious authorized_keys entries |
+| **LD_PRELOAD Rootkits** | `/etc/ld.so.preload` hijacking, environment variable injection across all processes |
+| **Hidden Kernel Modules** | Modules visible in `/proc/modules` but hidden from `lsmod` |
+| **Suspicious Cron Jobs** | Cron entries using `/tmp/`, `/dev/shm/`, mining pool domains, download-and-pipe patterns |
+| **Suspicious Systemd Services** | Services with unusual names or `ExecStart` paths in temporary directories |
+| **C2 Agents** | Known command-and-control agents (Nezha, Cobalt Strike, Sliver) + connections on C2 ports |
+| **Reverse Shells** | Active processes matching reverse shell patterns (`/dev/tcp`, `nc -e`, `bash -i >&`) |
+| **Mining Pool Connections** | Established connections to known Monero/Stratum pools and miner ports (3333, 4444, 5555) |
+
+### Mining Detection
+Scans all running processes against a database of known mining software (`xmrig`, `cpuminer`, `qgisring`, `softwaretech`, `t-rex`, `phoenixminer`, `lolminer`, `ethminer`, and 12+ others). Also flags processes above a configurable CPU threshold.
+
+### Auto-Kill Miners
+Toggle to automatically terminate any process identified as a known crypto miner — zero manual intervention.
+
+### Open Ports Monitor
+Shows all listening ports, established connections, and recent outbound connections. Suspicious non-standard high ports are flagged separately.
+
+### Virus Scanning (ClamAV)
+One-click integration with ClamAV. If not installed, the dashboard offers to download and install it automatically (~200 MB).
+
+### Scheduled Scanning
+Configure automatic forensic scans at any interval (e.g., every hour). When threats are found, alerts are sent via Telegram bot or generic webhook.
+
+### Firewall (iptables)
+Block and unblock IP addresses and ports directly from the dashboard. View current iptables INPUT/OUTPUT rules in real-time.
+
+### Integrity Monitor
+Create a SHA256 baseline of critical system files (`/etc/passwd`, `/etc/shadow`, `/etc/ssh/sshd_config`, `/bin/ls`, etc.) and check for unauthorized modifications on demand.
+
+### Log Viewer
+Browse system logs (`access.log`, `auth.log`, `syslog`, `cleanup.log`) with full-text search — no need to SSH and run `tail`/`grep`.
+
+### Panel Authentication
+Optional password protection for the entire dashboard, with PBKDF2-HMAC-SHA256 hashing, per-server salt, and rate limiting (5 attempts/minute per IP). Enable, disable, or change the password from the Settings panel — no config file editing needed.
+
+### Process Management
+Kill any process with one click from the Top Processes table. Kill endpoint is authenticated and prevents killing PID 1 (systemd) or the server itself.
+
+## Security Architecture
+
+- **Password storage**: PBKDF2-HMAC-SHA256 (100,000 iterations) with 128-bit per-server random salt — never plaintext
+- **Session tokens**: 256-bit cryptographic random (`secrets.token_hex(32)`), 4-hour expiry, max 100 concurrent sessions
+- **Constant-time comparison**: `hmac.compare_digest` for all password checks
+- **Rate limiting**: 5 login attempts per 60-second window per IP address
+- **Settings file**: Stored with `chmod 600`, old plaintext keys automatically purged on migration
+- **Path traversal protection**: `os.path.realpath` resolves symlinks before validation
+- **XSS prevention**: All user-supplied strings HTML-escaped in the frontend (`escHtml`)
+- **WebSocket auth**: Terminal requires session token as query parameter when password is enabled
+
 ## Installation
 
 Build packages from source (v2.0+):
