@@ -128,6 +128,9 @@ def _scan_hidden_dirs():
         ".nvm", ".node-gyp", ".electron-gyp", ".pyenv", ".venv", ".virtualenvs",
         ".opencode", ".claude", ".codeium", ".vscode-server", ".cursor-server",
         ".continue", ".aider", ".crewai", ".langchain", ".chroma",
+        ".pub-cache", ".dartServer", ".dart-tool", ".dart", ".android",
+        ".expo", ".cloudcli", ".rpmdb", ".gem", ".bundle", ".heroku",
+        ".taskmaster", ".codex", ".cursor", ".windsurf", ".trae",
     }
 
     for root in scan_roots:
