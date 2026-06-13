@@ -590,36 +590,54 @@ def start_ssh_monitor():
         auth_log = "/var/log/auth.log"
         if not os.path.exists(auth_log):
             auth_log = "/var/log/secure"
+        if not os.path.exists(auth_log):
+            log.error(f"SSH monitor: no auth log found")
+            _ssh_monitor_running = False
+            return
 
         try:
-            # Get current file size to start from end
-            with open(auth_log, "r") as f:
-                f.seek(0, 2)  # end of file
-                while _ssh_monitor_running:
-                    line = f.readline()
-                    if line:
-                        lower = line.lower()
-                        if "accepted" in lower and ("ssh" in lower or "sshd" in lower):
-                            parts = line.strip().split()
-                            user = ip = ""
-                            for i, p in enumerate(parts):
-                                if p == "for" and i + 1 < len(parts):
-                                    user = parts[i + 1]
-                                if p == "from" and i + 1 < len(parts):
-                                    ip = parts[i + 1]
-                            trace_log("ssh_login_accepted", {"user": user, "ip": ip, "raw": line.strip()[:200]})
-                            _track_successful_login(ip, user)
-                        elif "failed password" in lower:
-                            ip = ""
-                            for i, p in enumerate(parts):
-                                if p == "from" and i + 1 < len(parts):
-                                    ip = parts[i + 1]
-                            trace_log("ssh_login_failed", {"ip": ip, "raw": line.strip()[:200]})
-                            _track_failed_login(ip)
-                        elif "session opened" in lower and "sudo" in lower:
-                            trace_log("sudo_session", {"raw": line.strip()[:200]})
-                    else:
-                        time.sleep(0.5)
+            last_pos = max(0, os.path.getsize(auth_log) - 8192)  # include last 8KB
+            while _ssh_monitor_running:
+                time.sleep(0.5)
+                try:
+                    cur_size = os.path.getsize(auth_log)
+                    if cur_size > last_pos:
+                        with open(auth_log, "r") as f:
+                            f.seek(last_pos)
+                            new_data = f.read(cur_size - last_pos)
+                            last_pos = cur_size
+                        for line in new_data.splitlines():
+                            line = line.strip()
+                            if not line:
+                                continue
+                            lower = line.lower()
+                            if "accepted" in lower and ("ssh" in lower or "sshd" in lower):
+                                parts = line.strip().split()
+                                user = ip = ""
+                                for i, p in enumerate(parts):
+                                    if p == "for" and i + 1 < len(parts):
+                                        user = parts[i + 1]
+                                    if p == "from" and i + 1 < len(parts):
+                                        ip = parts[i + 1]
+                                if ip:
+                                    trace_log("ssh_login_accepted", {"user": user, "ip": ip, "raw": line[:200]})
+                                    _track_successful_login(ip, user)
+                            elif "failed password" in lower or "authentication failure" in lower:
+                                parts = line.strip().split()
+                                ip = ""
+                                for i, p in enumerate(parts):
+                                    if p == "from" and i + 1 < len(parts):
+                                        ip = parts[i + 1]
+                                if ip:
+                                    trace_log("ssh_login_failed", {"ip": ip, "raw": line[:200]})
+                                    _track_failed_login(ip)
+                            elif "session opened" in lower and "sudo" in lower:
+                                trace_log("sudo_session", {"raw": line[:200]})
+                    elif cur_size < last_pos:
+                        # Log rotated - reset position
+                        last_pos = 0
+                except Exception:
+                    pass
         except Exception as e:
             log.error(f"SSH monitor error: {e}")
         _ssh_monitor_running = False
