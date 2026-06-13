@@ -888,8 +888,9 @@ def get_open_ports(recent_threshold=300):
 
 
 def _parse_ss_listening():
+    """Parse 'ss -tlnp' output."""
     try:
-        r = subprocess.run(["ss", "-tlnp"], capture_output=True, text=True, timeout=5)
+        r = subprocess.run(["ss", "-Htlnp"], capture_output=True, text=True, timeout=5)
         if r.returncode != 0:
             return []
         entries = []
@@ -916,6 +917,7 @@ def _parse_ss_listening():
 
 
 def _parse_ss_established():
+    """Parse 'ss -tn state established' output."""
     try:
         r = subprocess.run(["ss", "-tn", "state", "established"], capture_output=True, text=True, timeout=5)
         if r.returncode != 0:
@@ -982,10 +984,11 @@ def _hex_addr_port(hex_pair):
 
 
 def _get_recent_connections(threshold):
+    """Get recent outbound connections using ss -tan"""
     entries = []
     try:
         r = subprocess.run(
-            "ss -tan state established | grep -v '127.0.0.1\\|::1' | head -30",
+            "ss -Htan state established | grep -v '127.0.0.1\\|::1' | head -30",
             shell=True, capture_output=True, text=True, timeout=5
         )
         for line in r.stdout.splitlines():
