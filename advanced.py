@@ -64,6 +64,8 @@ def start_scheduler(interval_seconds=3600, alert_webhook=None):
             try:
                 from security import deep_forensic_scan
                 result = deep_forensic_scan()
+                # Also run behavioral anomaly snapshot
+                anomaly_snapshot()
                 _persist_scheduler_state(False, None)
                 if result.get("total_findings", 0) > 0:
                     log.warning(f"Scheduled scan found {result['total_findings']} issues")
@@ -395,3 +397,161 @@ def _fmt_bytes(bytes_val):
     if bytes_val >= 1024:
         return f"{bytes_val / 1024:.1f} KB"
     return f"{bytes_val} B"
+
+
+# ── 6. Behavioral Anomaly Logger ────────────────────────────────
+
+ANOMALY_LOG = "/opt/server-monitor/logs/anomaly.log"
+ANOMALY_STATE = "/opt/server-monitor/logs/anomaly_state.json"
+
+# State snapshots
+_last_process_snapshot = set()
+_last_connection_snapshot = set()
+_last_systemd_snapshot = set()
+_last_cron_snapshot = set()
+
+
+def anomaly_snapshot():
+    """Take a behavioral snapshot and compare to previous, log anomalies."""
+    global _last_process_snapshot, _last_connection_snapshot
+    global _last_systemd_snapshot, _last_cron_snapshot
+
+    # Load previous state
+    prev = _load_json(ANOMALY_STATE)
+    _last_process_snapshot = set(prev.get("processes", []))
+    _last_connection_snapshot = set(prev.get("connections", []))
+    _last_systemd_snapshot = set(prev.get("systemd_services", []))
+    _last_cron_snapshot = set(prev.get("cron_entries", []))
+
+    anomalies = []
+    now = datetime.now().isoformat()
+
+    # 1. New processes (PID ignored, compare (name, cmdline_hash))
+    import hashlib as _hl
+    current_procs = set()
+    try:
+        for p in psutil.process_iter(['name', 'cmdline']):
+            try:
+                cmd = ' '.join(p.info.get('cmdline') or [])
+                key = f"{p.info['name']}|{_hl.md5(cmd.encode()).hexdigest()[:12]}"
+                current_procs.add(key)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    new_procs = current_procs - _last_process_snapshot
+    gone_procs = _last_process_snapshot - current_procs
+    if new_procs:
+        suspicious = [p for p in new_procs if any(x in p.lower() for x in
+            ['miner', 'xmrig', 'stratum', 'cryptonight', 'zzh', 'rsysloged',
+             'backdoor', 'reverse', 'c2', 'nezha', 'tor', 'hidden', '/tmp/',
+             '/dev/shm/', '/var/tmp/', '/etc/.', '.so', 'LD_PRELOAD'])]
+        if suspicious:
+            anomalies.append({"type": "new_suspicious_process", "detail": suspicious, "time": now})
+    if gone_procs and len(gone_procs) > 10:
+        anomalies.append({"type": "many_processes_gone", "count": len(gone_procs), "time": now})
+
+    # 2. New network connections (external only)
+    current_conns = set()
+    try:
+        for conn in psutil.net_connections(kind='inet'):
+            if conn.status == 'ESTABLISHED' and conn.raddr:
+                rip = conn.raddr.ip
+                if not rip.startswith('127.') and not rip.startswith('192.168.') and not rip.startswith('10.') and not rip.startswith('172.16.'):
+                    current_conns.add(f"{rip}:{conn.raddr.port}")
+    except Exception:
+        pass
+
+    new_conns = current_conns - _last_connection_snapshot
+    if new_conns:
+        anomalies.append({"type": "new_external_connections", "detail": list(new_conns), "time": now})
+
+    # 3. New systemd services
+    current_systemd = set()
+    for svc_dir in ["/etc/systemd/system", "/lib/systemd/system"]:
+        if os.path.isdir(svc_dir):
+            for fname in os.listdir(svc_dir):
+                if fname.endswith(".service"):
+                    current_systemd.add(fname)
+
+    new_systemd = current_systemd - _last_systemd_snapshot
+    gone_systemd = _last_systemd_snapshot - current_systemd
+    if new_systemd:
+        anomalies.append({"type": "new_systemd_services", "detail": list(new_systemd), "time": now})
+    if gone_systemd:
+        anomalies.append({"type": "removed_systemd_services", "detail": list(gone_systemd), "time": now})
+
+    # 4. New cron entries
+    current_cron = set()
+    for cron_dir in ["/etc/cron.d", "/etc/cron.hourly", "/etc/cron.daily"]:
+        if os.path.isdir(cron_dir):
+            for fname in os.listdir(cron_dir):
+                fpath = os.path.join(cron_dir, fname)
+                if os.path.isfile(fpath):
+                    try:
+                        with open(fpath) as f:
+                            current_cron.add(f"{fname}:{_hl.md5(f.read().encode()).hexdigest()[:12]}")
+                    except Exception:
+                        pass
+
+    new_cron = current_cron - _last_cron_snapshot
+    gone_cron = _last_cron_snapshot - current_cron
+    if new_cron:
+        anomalies.append({"type": "new_cron_entries", "detail": list(new_cron), "time": now})
+    if gone_cron:
+        anomalies.append({"type": "removed_cron_entries", "detail": list(gone_cron), "time": now})
+
+    # Save current state
+    _save_json(ANOMALY_STATE, {
+        "processes": list(current_procs),
+        "connections": list(current_conns),
+        "systemd_services": list(current_systemd),
+        "cron_entries": list(current_cron),
+        "last_update": now,
+    })
+
+    _last_process_snapshot = current_procs
+    _last_connection_snapshot = current_conns
+    _last_systemd_snapshot = current_systemd
+    _last_cron_snapshot = current_cron
+
+    # Log anomalies
+    if anomalies:
+        os.makedirs(os.path.dirname(ANOMALY_LOG), exist_ok=True)
+        with open(ANOMALY_LOG, "a") as f:
+            for a in anomalies:
+                f.write(json.dumps(a) + "\n")
+        log.warning(f"Behavioral anomalies detected: {len(anomalies)}")
+
+    return {"success": True, "anomalies": len(anomalies), "timestamp": now}
+
+
+def anomaly_log_read(lines=100, search=None):
+    """Read the anomaly log."""
+    if not os.path.isfile(ANOMALY_LOG):
+        return {"success": True, "entries": [], "total": 0}
+
+    try:
+        with open(ANOMALY_LOG, "r") as f:
+            entries = [json.loads(l) for l in f.readlines() if l.strip()]
+
+        if search:
+            sl = search.lower()
+            entries = [e for e in entries if sl in json.dumps(e).lower()]
+
+        entries.reverse()
+        return {
+            "success": True,
+            "total": len(entries),
+            "entries": entries[:lines],
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def anomaly_reset_baseline():
+    """Delete anomaly state so next snapshot creates a new baseline."""
+    if os.path.exists(ANOMALY_STATE):
+        os.remove(ANOMALY_STATE)
+    return {"success": True, "message": "Baseline reset. Next snapshot will be the new baseline."}

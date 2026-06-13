@@ -1118,6 +1118,7 @@
                 '<div class="security-tabs" style="margin-bottom:16px">' +
                     '<div class="security-tab active" onclick="switchAdvTab(\'scheduler\')">Scheduler</div>' +
                     '<div class="security-tab" onclick="switchAdvTab(\'firewall\')">Firewall</div>' +
+                    '<div class="security-tab" onclick="switchAdvTab(\'anomaly\')">Anomalies</div>' +
                     '<div class="security-tab" onclick="switchAdvTab(\'integrity\')">Integrity</div>' +
                     '<div class="security-tab" onclick="switchAdvTab(\'logs\')">Logs</div>' +
                 '</div>' +
@@ -1145,6 +1146,15 @@
                         '<button class="btn btn-sm" onclick="loadFirewall()">&#8635;</button>' +
                     '</div>' +
                     '<div id="firewall-rules" style="font-size:11px;font-family:monospace;max-height:300px;overflow-y:auto"></div>' +
+                '</div>' +
+                '<div class="security-tab-content" id="adv-anomaly">' +
+                    '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
+                        '<button class="btn btn-sm btn-warning" onclick="runAnomalySnapshot()">Take Snapshot</button>' +
+                        '<button class="btn btn-sm" onclick="resetAnomalyBaseline()">Reset Baseline</button>' +
+                        '<button class="btn btn-sm" onclick="loadAnomalyLog()">&#8635; Refresh Log</button>' +
+                        '<span style="font-size:11px;color:var(--text-secondary)">Detects new processes, connections, services, cron</span>' +
+                    '</div>' +
+                    '<div id="anomaly-result" style="font-size:12px;font-family:monospace;max-height:300px;overflow-y:auto"></div>' +
                 '</div>' +
                 '<div class="security-tab-content" id="adv-integrity">' +
                     '<div style="display:flex;gap:8px;margin-bottom:12px">' +
@@ -1518,6 +1528,7 @@
             if (tab === 'firewall') loadFirewall();
             if (tab === 'logs') loadLog();
             if (tab === 'scheduler') loadSchedulerStatus();
+            if (tab === 'anomaly') loadAnomalyLog();
         }
 
         // ── Scheduler + Auto-Kill ──
@@ -1685,6 +1696,53 @@
                     line = escHtml(line);
                 }
                 html += '<div style="border-bottom:1px solid var(--border);padding:1px 0">' + line + '</div>';
+            });
+            el.innerHTML = html;
+        }
+
+        // ── Anomaly Logger ──
+
+        async function runAnomalySnapshot() {
+            var el = document.getElementById('anomaly-result');
+            el.innerHTML = '<span class="spinner"></span> Taking behavioral snapshot...';
+            var r = await fetchJSON(API + '/security/anomaly/snapshot', {method: 'POST'});
+            if (r && r.success) {
+                el.innerHTML = '<div style="color:var(--success)">Snapshot taken. ' + r.anomalies + ' anomaly(s) found</div>';
+                if (r.anomalies > 0) loadAnomalyLog();
+            } else {
+                el.innerHTML = '<span style="color:var(--danger)">Snapshot failed</span>';
+            }
+        }
+
+        async function resetAnomalyBaseline() {
+            if (!confirm('Reset anomaly baseline? Current state becomes the new normal.')) return;
+            var r = await fetchJSON(API + '/security/anomaly/reset', {method: 'POST'});
+            var el = document.getElementById('anomaly-result');
+            el.innerHTML = '<span style="color:var(--success)">' + (r ? r.message : 'Baseline reset') + '</span>';
+        }
+
+        async function loadAnomalyLog() {
+            var el = document.getElementById('anomaly-result');
+            el.innerHTML = 'Loading...';
+            var data = await fetchJSON(API + '/security/anomaly/log?lines=30');
+            if (!data || !data.entries) {
+                el.innerHTML = '<span style="color:var(--danger)">Failed to load</span>';
+                return;
+            }
+            if (data.entries.length === 0) {
+                el.innerHTML = '<span style="color:var(--success)">No anomalies logged. System behavior is stable.</span>';
+                return;
+            }
+            var html = '<div style="color:var(--text-secondary);margin-bottom:4px">' + data.total + ' anomalies logged</div>';
+            data.entries.forEach(function(a) {
+                var icon = '&#128308;';
+                var sev = 'var(--warning)';
+                if (a.type.includes('suspicious') || a.type.includes('malware')) { icon = '&#9762;'; sev = 'var(--danger)'; }
+                html += '<div style="border-bottom:1px solid var(--border);padding:4px 0">' +
+                    '<span style="color:' + sev + '">' + icon + ' ' + escHtml(a.type) + '</span> ' +
+                    '<span style="color:var(--text-secondary);font-size:10px">' + (a.time || '') + '</span>' +
+                    '<div style="color:var(--text-secondary);font-size:10px;margin-top:2px">' + escHtml(JSON.stringify(a.detail || a.count || '').substring(0,200)) + '</div>' +
+                '</div>';
             });
             el.innerHTML = html;
         }

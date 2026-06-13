@@ -891,6 +891,28 @@ def log_viewer_read(log_name):
     return jsonify(result)
 
 
+# ── Behavioral Anomaly API ──────────────────────────────────────
+
+@app.route("/api/security/anomaly/snapshot", methods=["POST"])
+def anomaly_snapshot_api():
+    result = advanced.anomaly_snapshot()
+    return jsonify(result)
+
+
+@app.route("/api/security/anomaly/log")
+def anomaly_log_api():
+    lines = request.args.get("lines", 50, type=int)
+    search = request.args.get("search")
+    result = advanced.anomaly_log_read(lines=min(lines, 200), search=search)
+    return jsonify(result)
+
+
+@app.route("/api/security/anomaly/reset", methods=["POST"])
+def anomaly_reset_api():
+    result = advanced.anomaly_reset_baseline()
+    return jsonify(result)
+
+
 # ── File Manager ────────────────────────────────────────────────
 
 @app.route("/api/files/list")
