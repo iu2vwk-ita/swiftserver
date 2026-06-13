@@ -1119,6 +1119,7 @@
                     '<div class="security-tab active" onclick="switchAdvTab(\'scheduler\')">Scheduler</div>' +
                     '<div class="security-tab" onclick="switchAdvTab(\'firewall\')">Firewall</div>' +
                     '<div class="security-tab" onclick="switchAdvTab(\'anomaly\')">Anomalies</div>' +
+                    '<div class="security-tab" onclick="switchAdvTab(\'trace\')">Trace</div>' +
                     '<div class="security-tab" onclick="switchAdvTab(\'integrity\')">Integrity</div>' +
                     '<div class="security-tab" onclick="switchAdvTab(\'logs\')">Logs</div>' +
                 '</div>' +
@@ -1155,6 +1156,16 @@
                         '<span style="font-size:11px;color:var(--text-secondary)">Detects new processes, connections, services, cron</span>' +
                     '</div>' +
                     '<div id="anomaly-result" style="font-size:12px;font-family:monospace;max-height:300px;overflow-y:auto"></div>' +
+                '</div>' +
+                '<div class="security-tab-content" id="adv-trace">' +
+                    '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
+                        '<button class="btn btn-sm btn-accent" id="sshmon-start-btn" onclick="startSSHMonitor()">Start SSH Monitor</button>' +
+                        '<button class="btn btn-sm btn-danger" id="sshmon-stop-btn" onclick="stopSSHMonitor()" style="display:none">Stop Monitor</button>' +
+                        '<button class="btn btn-sm btn-warning" onclick="deployHoneytokens()">Deploy Honeytokens</button>' +
+                        '<button class="btn btn-sm" onclick="checkHoneytokens()">Check Tokens</button>' +
+                        '<button class="btn btn-sm" onclick="loadTraceLog()">&#8635; Refresh</button>' +
+                    '</div>' +
+                    '<div id="trace-result" style="font-size:12px;font-family:monospace;max-height:300px;overflow-y:auto"></div>' +
                 '</div>' +
                 '<div class="security-tab-content" id="adv-integrity">' +
                     '<div style="display:flex;gap:8px;margin-bottom:12px">' +
@@ -1529,6 +1540,7 @@
             if (tab === 'logs') loadLog();
             if (tab === 'scheduler') loadSchedulerStatus();
             if (tab === 'anomaly') loadAnomalyLog();
+            if (tab === 'trace') loadTraceLog();
         }
 
         // ── Scheduler + Auto-Kill ──
@@ -1742,6 +1754,70 @@
                     '<span style="color:' + sev + '">' + icon + ' ' + escHtml(a.type) + '</span> ' +
                     '<span style="color:var(--text-secondary);font-size:10px">' + (a.time || '') + '</span>' +
                     '<div style="color:var(--text-secondary);font-size:10px;margin-top:2px">' + escHtml(JSON.stringify(a.detail || a.count || '').substring(0,200)) + '</div>' +
+                '</div>';
+            });
+            el.innerHTML = html;
+        }
+
+        // ── Trace / Intrusion Detection ──
+
+        async function startSSHMonitor() {
+            var r = await fetchJSON(API + '/security/trace/ssh-monitor/start', {method: 'POST'});
+            var el = document.getElementById('trace-result');
+            el.innerHTML = '<span style="color:var(--success)">' + (r ? r.message : 'Started') + '</span>';
+            document.getElementById('sshmon-start-btn').style.display = 'none';
+            document.getElementById('sshmon-stop-btn').style.display = 'inline-block';
+        }
+
+        async function stopSSHMonitor() {
+            var r = await fetchJSON(API + '/security/trace/ssh-monitor/stop', {method: 'POST'});
+            document.getElementById('sshmon-start-btn').style.display = 'inline-block';
+            document.getElementById('sshmon-stop-btn').style.display = 'none';
+        }
+
+        async function deployHoneytokens() {
+            var el = document.getElementById('trace-result');
+            el.innerHTML = '<span class="spinner"></span> Deploying honeytokens...';
+            var r = await fetchJSON(API + '/security/trace/honeytokens/deploy', {method: 'POST'});
+            if (r && r.success) {
+                el.innerHTML = '<div style="color:var(--success)">' + r.tokens_deployed + ' honeytokens deployed</div>';
+                r.paths.forEach(function(p) { el.innerHTML += '<div style="font-size:10px;color:var(--text-secondary)">' + escHtml(p) + '</div>'; });
+            } else {
+                el.innerHTML = '<span style="color:var(--danger)">Failed</span>';
+            }
+        }
+
+        async function checkHoneytokens() {
+            var el = document.getElementById('trace-result');
+            el.innerHTML = '<span class="spinner"></span> Checking...';
+            var r = await fetchJSON(API + '/security/trace/honeytokens/check');
+            if (r && r.triggered > 0) {
+                el.innerHTML = '<div style="color:var(--danger);font-weight:600">&#128308; ' + r.triggered + ' HONEYTOKEN(S) TRIGGERED!</div>';
+                r.tokens.forEach(function(t) { el.innerHTML += '<div style="color:var(--danger);font-size:11px">' + escHtml(t.path) + '</div>'; });
+            } else {
+                el.innerHTML = '<div style="color:var(--success)">No honeytokens triggered &mdash; attacker not active in planted areas</div>';
+            }
+        }
+
+        async function loadTraceLog() {
+            var el = document.getElementById('trace-result');
+            el.innerHTML = 'Loading...';
+            var data = await fetchJSON(API + '/security/trace/log?lines=30');
+            if (!data || !data.entries) {
+                el.innerHTML = '<span style="color:var(--text-secondary)">No trace entries yet</span>';
+                return;
+            }
+            var html = '<div style="color:var(--text-secondary);margin-bottom:4px">' + data.total + ' trace entries</div>';
+            data.entries.forEach(function(e) {
+                var icon = '&#128065;';
+                var color = 'var(--accent)';
+                if (e.type.includes('login')) { icon = '&#128272;'; color = 'var(--warning)'; }
+                if (e.type.includes('honeytoken')) { icon = '&#128308;'; color = 'var(--danger)'; }
+                if (e.type.includes('sudo')) { icon = '&#9888;'; color = 'var(--warning)'; }
+                html += '<div style="border-bottom:1px solid var(--border);padding:3px 0">' +
+                    '<span style="color:' + color + '">' + icon + ' ' + escHtml(e.type) + '</span> ' +
+                    '<span style="color:var(--text-secondary);font-size:10px">' + (e.time||'') + '</span>' +
+                    '<div style="color:var(--text-secondary);font-size:10px;margin-top:1px">' + escHtml(JSON.stringify(e.detail||'').substring(0,200)) + '</div>' +
                 '</div>';
             });
             el.innerHTML = html;

@@ -555,3 +555,228 @@ def anomaly_reset_baseline():
     if os.path.exists(ANOMALY_STATE):
         os.remove(ANOMALY_STATE)
     return {"success": True, "message": "Baseline reset. Next snapshot will be the new baseline."}
+
+
+# ── 7. Intrusion Trace Layer ─────────────────────────────────────
+
+HONEYTOKEN_DIR = "/opt/server-monitor/honeytokens"
+TRACE_LOG = "/opt/server-monitor/logs/trace.log"
+_ssh_monitor_thread = None
+_ssh_monitor_running = False
+
+
+def trace_log(entry_type, detail):
+    """Write a trace entry for intrusion analysis."""
+    entry = {"time": datetime.now().isoformat(), "type": entry_type, "detail": detail}
+    os.makedirs(os.path.dirname(TRACE_LOG), exist_ok=True)
+    try:
+        with open(TRACE_LOG, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
+    log.warning(f"TRACE: {entry_type} - {str(detail)[:200]}")
+
+
+def start_ssh_monitor():
+    """Monitor auth.log in real-time for SSH logins."""
+    global _ssh_monitor_thread, _ssh_monitor_running
+    if _ssh_monitor_running:
+        return {"success": False, "message": "SSH monitor already running"}
+
+    _ssh_monitor_running = True
+
+    def _watch():
+        global _ssh_monitor_running
+        auth_log = "/var/log/auth.log"
+        if not os.path.exists(auth_log):
+            auth_log = "/var/log/secure"
+
+        try:
+            # Get current file size to start from end
+            with open(auth_log, "r") as f:
+                f.seek(0, 2)  # end of file
+                while _ssh_monitor_running:
+                    line = f.readline()
+                    if line:
+                        lower = line.lower()
+                        if "accepted" in lower and ("ssh" in lower or "sshd" in lower):
+                            parts = line.strip().split()
+                            user = ip = ""
+                            for i, p in enumerate(parts):
+                                if p == "for" and i + 1 < len(parts):
+                                    user = parts[i + 1]
+                                if p == "from" and i + 1 < len(parts):
+                                    ip = parts[i + 1]
+                            trace_log("ssh_login_accepted", {"user": user, "ip": ip, "raw": line.strip()[:200]})
+                        elif "failed password" in lower:
+                            for i, p in enumerate(parts):
+                                if p == "from" and i + 1 < len(parts):
+                                    trace_log("ssh_login_failed", {"ip": parts[i + 1], "raw": line.strip()[:200]})
+                        elif "session opened" in lower and "sudo" in lower:
+                            trace_log("sudo_session", {"raw": line.strip()[:200]})
+                    else:
+                        time.sleep(0.5)
+        except Exception as e:
+            log.error(f"SSH monitor error: {e}")
+        _ssh_monitor_running = False
+
+    _ssh_monitor_thread = threading.Thread(target=_watch, daemon=True)
+    _ssh_monitor_thread.start()
+    trace_log("ssh_monitor_started", "Real-time SSH monitoring active")
+    return {"success": True, "message": "SSH monitor started"}
+
+
+def stop_ssh_monitor():
+    global _ssh_monitor_running
+    _ssh_monitor_running = False
+    return {"success": True, "message": "SSH monitor stopped"}
+
+
+def ssh_monitor_status():
+    return {"running": _ssh_monitor_running}
+
+
+def deploy_honeytokens():
+    """Place bait files in common attacker locations. Any access is logged."""
+    os.makedirs(HONEYTOKEN_DIR, exist_ok=True)
+    tokens = {}
+
+    # Fake credentials file
+    token_path = os.path.join(HONEYTOKEN_DIR, "backup_credentials.txt")
+    with open(token_path, "w") as f:
+        f.write("# Database backup credentials\n")
+        f.write("DB_HOST=prod-db.internal\n")
+        f.write("DB_USER=admin\n")
+        f.write("DB_PASS=SuperSecret123!\n")
+    os.chmod(token_path, 0o400)
+    tokens["credentials_file"] = token_path
+
+    # Fake SSH key
+    token_path = os.path.join(HONEYTOKEN_DIR, "id_rsa_backup")
+    with open(token_path, "w") as f:
+        f.write("-----BEGIN OPENSSH PRIVATE KEY-----\n")
+        f.write("(honeytoken - access is monitored)\n")
+        f.write("-----END OPENSSH PRIVATE KEY-----\n")
+    os.chmod(token_path, 0o400)
+    tokens["ssh_key"] = token_path
+
+    # Fake .env file
+    token_path = os.path.join(HONEYTOKEN_DIR, ".env")
+    with open(token_path, "w") as f:
+        f.write("SECRET_KEY=production-secret-key-2024\n")
+        f.write("API_TOKEN=sk-abcdef1234567890\n")
+        f.write("DATABASE_URL=postgresql://admin:password@localhost/db\n")
+    os.chmod(token_path, 0o400)
+    tokens["env_file"] = token_path
+
+    # Plant token in /tmp disguised as cache
+    os.makedirs("/tmp/.cache_bkp", exist_ok=True)
+    token_path = "/tmp/.cache_bkp/id_rsa"
+    with open(token_path, "w") as f:
+        f.write("-----BEGIN OPENSSH PRIVATE KEY-----\n(honeytoken)\n-----END OPENSSH PRIVATE KEY-----\n")
+    tokens["tmp_ssh_key"] = token_path
+
+    # Plant token in /var/tmp
+    os.makedirs("/var/tmp/.sys", exist_ok=True)
+    token_path = "/var/tmp/.sys/config.json"
+    with open(token_path, "w") as f:
+        f.write('{"honeytoken": true, "note": "access monitored"}\n')
+    tokens["var_tmp_config"] = token_path
+
+    # Plant token in /etc (attacker favorite)
+    token_path = "/etc/.syscfg"
+    os.makedirs(token_path, exist_ok=True)
+    cfg_path = os.path.join(token_path, "db.conf")
+    with open(cfg_path, "w") as f:
+        f.write("[database]\npassword = ProductionDB2024!\n")
+    tokens["etc_syscfg"] = cfg_path
+
+    trace_log("honeytokens_deployed", {"count": len(tokens), "paths": list(tokens.values())})
+
+    return {"success": True, "tokens_deployed": len(tokens), "paths": list(tokens.values())}
+
+
+def check_honeytokens():
+    """Check if any honeytoken files have been accessed (atime/mtime changed)."""
+    triggered = []
+    if not os.path.isdir(HONEYTOKEN_DIR):
+        return {"triggered": 0, "tokens": []}
+
+    baseline_file = os.path.join(HONEYTOKEN_DIR, ".baseline.json")
+    baseline = _load_json(baseline_file)
+
+    for root, _, files in os.walk(HONEYTOKEN_DIR):
+        for fname in files:
+            if fname == ".baseline.json":
+                continue
+            fpath = os.path.join(root, fname)
+            try:
+                st = os.stat(fpath)
+                key = fpath
+                old = baseline.get(key, {})
+                if old and (st.st_atime != old.get("atime") or st.st_mtime != old.get("mtime")):
+                    triggered.append({
+                        "path": fpath,
+                        "old_atime": old.get("atime"),
+                        "new_atime": st.st_atime,
+                    })
+                    trace_log("honeytoken_accessed", {"path": fpath, "atime": st.st_atime})
+            except Exception:
+                pass
+
+    # Also check planted tokens outside HONEYTOKEN_DIR
+    planted = ["/tmp/.cache_bkp/id_rsa", "/var/tmp/.sys/config.json", "/etc/.syscfg/db.conf"]
+    for pp in planted:
+        if os.path.exists(pp):
+            try:
+                st = os.stat(pp)
+                key = pp
+                old = baseline.get(key, {})
+                if old and (st.st_atime != old.get("atime") or st.st_mtime != old.get("mtime")):
+                    triggered.append({
+                        "path": pp,
+                        "old_atime": old.get("atime"),
+                        "new_atime": st.st_atime,
+                    })
+                    trace_log("honeytoken_accessed", {"path": pp, "atime": st.st_atime})
+            except Exception:
+                pass
+
+    # Update baseline
+    new_baseline = {}
+    for root, _, files in os.walk(HONEYTOKEN_DIR):
+        for fname in files:
+            if fname == ".baseline.json":
+                continue
+            fpath = os.path.join(root, fname)
+            try:
+                st = os.stat(fpath)
+                new_baseline[fpath] = {"atime": st.st_atime, "mtime": st.st_mtime}
+            except Exception:
+                pass
+    for pp in planted:
+        if os.path.exists(pp):
+            try:
+                st = os.stat(pp)
+                new_baseline[pp] = {"atime": st.st_atime, "mtime": st.st_mtime}
+            except Exception:
+                pass
+    _save_json(baseline_file, new_baseline)
+
+    return {"triggered": len(triggered), "tokens": triggered}
+
+
+def trace_log_read(lines=50, search=None):
+    """Read the trace log."""
+    if not os.path.isfile(TRACE_LOG):
+        return {"success": True, "entries": [], "total": 0}
+    try:
+        with open(TRACE_LOG, "r") as f:
+            entries = [json.loads(l) for l in f.readlines() if l.strip()]
+        if search:
+            sl = search.lower()
+            entries = [e for e in entries if sl in json.dumps(e).lower()]
+        entries.reverse()
+        return {"success": True, "total": len(entries), "entries": entries[:lines]}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

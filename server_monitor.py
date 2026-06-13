@@ -913,6 +913,45 @@ def anomaly_reset_api():
     return jsonify(result)
 
 
+# ── Trace / Intrusion Detection API ─────────────────────────────
+
+@app.route("/api/security/trace/ssh-monitor/start", methods=["POST"])
+def trace_ssh_start():
+    result = advanced.start_ssh_monitor()
+    return jsonify(result)
+
+
+@app.route("/api/security/trace/ssh-monitor/stop", methods=["POST"])
+def trace_ssh_stop():
+    result = advanced.stop_ssh_monitor()
+    return jsonify(result)
+
+
+@app.route("/api/security/trace/ssh-monitor")
+def trace_ssh_status():
+    return jsonify(advanced.ssh_monitor_status())
+
+
+@app.route("/api/security/trace/honeytokens/deploy", methods=["POST"])
+def trace_honeytokens_deploy():
+    result = advanced.deploy_honeytokens()
+    return jsonify(result)
+
+
+@app.route("/api/security/trace/honeytokens/check")
+def trace_honeytokens_check():
+    result = advanced.check_honeytokens()
+    return jsonify(result)
+
+
+@app.route("/api/security/trace/log")
+def trace_log_api():
+    lines = request.args.get("lines", 50, type=int)
+    search = request.args.get("search")
+    result = advanced.trace_log_read(lines=min(lines, 200), search=search)
+    return jsonify(result)
+
+
 # ── File Manager ────────────────────────────────────────────────
 
 @app.route("/api/files/list")
@@ -1071,6 +1110,9 @@ if __name__ == "__main__":
     if AUTO_KILL_MINERS:
         advanced.set_auto_kill(True)
         logging.info("Auto-kill miners: ENABLED")
+
+    # SSH monitor available via Advanced > Trace panel (not auto-started)
+    # advanced.start_ssh_monitor()
 
     pw = _get_password()
     if pw:
