@@ -608,10 +608,14 @@ def start_ssh_monitor():
                                 if p == "from" and i + 1 < len(parts):
                                     ip = parts[i + 1]
                             trace_log("ssh_login_accepted", {"user": user, "ip": ip, "raw": line.strip()[:200]})
+                            _track_successful_login(ip, user)
                         elif "failed password" in lower:
+                            ip = ""
                             for i, p in enumerate(parts):
                                 if p == "from" and i + 1 < len(parts):
-                                    trace_log("ssh_login_failed", {"ip": parts[i + 1], "raw": line.strip()[:200]})
+                                    ip = parts[i + 1]
+                            trace_log("ssh_login_failed", {"ip": ip, "raw": line.strip()[:200]})
+                            _track_failed_login(ip)
                         elif "session opened" in lower and "sudo" in lower:
                             trace_log("sudo_session", {"raw": line.strip()[:200]})
                     else:
@@ -780,3 +784,103 @@ def trace_log_read(lines=50, search=None):
         return {"success": True, "total": len(entries), "entries": entries[:lines]}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+# ── 8. Auto-Ban System ──────────────────────────────────────────
+
+AUTOBAN_STATE = "/opt/server-monitor/logs/autoban.json"
+_failed_attempts = {}
+_successful_ips = set()
+_banned_ips = set()
+_auto_ban_lock = threading.Lock()
+WHITELIST_IPS = {"127.0.0.1", "::1"}
+AUTOBAN_THRESHOLD = 5
+AUTOBAN_WINDOW = 300
+AUTOBAN_DURATION = 0
+
+
+def _is_whitelisted(ip):
+    if ip in WHITELIST_IPS or ip.startswith("192.168.") or ip.startswith("10.") or ip.startswith("172.16.") or ip == "::1":
+        return True
+    return False
+
+
+def _ban_ip(ip, reason):
+    if _is_whitelisted(ip):
+        return
+    with _auto_ban_lock:
+        if ip in _banned_ips:
+            return
+        _banned_ips.add(ip)
+    try:
+        subprocess.run(["iptables", "-I", "INPUT", "1", "-s", ip, "-j", "DROP"], capture_output=True, timeout=5)
+        trace_log("autoban_ip", {"ip": ip, "reason": reason})
+        log.warning(f"AUTO-BAN: {ip} — {reason}")
+        _save_json(AUTOBAN_STATE, {"banned": list(_banned_ips), "successful": list(_successful_ips)})
+    except Exception as e:
+        log.error(f"Auto-ban failed for {ip}: {e}")
+
+
+def _unban_ip(ip):
+    with _auto_ban_lock:
+        _banned_ips.discard(ip)
+    for chain in ["INPUT", "OUTPUT"]:
+        try:
+            r = subprocess.run(
+                f"iptables -L {chain} -n --line-numbers 2>/dev/null | grep '{ip}' | grep DROP | awk '{{print $1}}' | sort -rn",
+                shell=True, capture_output=True, text=True, timeout=5
+            )
+            for num in r.stdout.strip().splitlines():
+                if num.isdigit():
+                    subprocess.run(["iptables", "-D", chain, num], capture_output=True, timeout=5)
+        except Exception:
+            pass
+    _save_json(AUTOBAN_STATE, {"banned": list(_banned_ips), "successful": list(_successful_ips)})
+
+
+def load_autoban_state():
+    global _banned_ips, _successful_ips
+    state = _load_json(AUTOBAN_STATE)
+    if "banned" in state:
+        _banned_ips = set(state["banned"])
+    if "successful" in state:
+        _successful_ips = set(state["successful"])
+
+
+def _track_failed_login(ip):
+    if _is_whitelisted(ip):
+        return False
+    now = datetime.now()
+    with _auto_ban_lock:
+        attempts = [t for t in _failed_attempts.get(ip, []) if (now - t).total_seconds() < AUTOBAN_WINDOW]
+        attempts.append(now)
+        _failed_attempts[ip] = attempts
+        count = len(attempts)
+    if count >= AUTOBAN_THRESHOLD:
+        _ban_ip(ip, f"{count} failed logins in {AUTOBAN_WINDOW}s")
+        with _auto_ban_lock:
+            _failed_attempts.pop(ip, None)
+        return True
+    return False
+
+
+def _track_successful_login(ip, user):
+    if _is_whitelisted(ip):
+        return
+    with _auto_ban_lock:
+        is_new = ip not in _successful_ips
+        _successful_ips.add(ip)
+    if is_new:
+        trace_log("new_ip_login", {"ip": ip, "user": user})
+        log.warning(f"NEW IP LOGIN: {user} from {ip}")
+    _save_json(AUTOBAN_STATE, {"banned": list(_banned_ips), "successful": list(_successful_ips)})
+
+
+def autoban_status():
+    return {"banned_count": len(_banned_ips), "banned_ips": sorted(_banned_ips),
+            "threshold": AUTOBAN_THRESHOLD, "window_s": AUTOBAN_WINDOW}
+
+
+def autoban_unban(ip):
+    _unban_ip(ip)
+    return {"success": True, "message": f"Unbanned {ip}"}

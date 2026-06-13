@@ -952,6 +952,22 @@ def trace_log_api():
     return jsonify(result)
 
 
+# ── Auto-Ban API ────────────────────────────────────────────────
+
+@app.route("/api/security/autoban/status")
+def autoban_status_api():
+    return jsonify(advanced.autoban_status())
+
+
+@app.route("/api/security/autoban/unban", methods=["POST"])
+def autoban_unban_api():
+    data = request.get_json(silent=True) or {}
+    ip = data.get("ip", "").strip()
+    if not ip:
+        return jsonify({"success": False, "error": "IP required"}), 400
+    return jsonify(advanced.autoban_unban(ip))
+
+
 # ── File Manager ────────────────────────────────────────────────
 
 @app.route("/api/files/list")
@@ -1100,6 +1116,7 @@ if __name__ == "__main__":
     # Load runtime settings
     _load_settings()
     advanced.load_persisted_state()
+    advanced.load_autoban_state()
 
     # Auto-start scheduled scanner if configured
     if SCHEDULED_SCAN_INTERVAL > 0:

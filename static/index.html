@@ -1165,6 +1165,7 @@
                         '<button class="btn btn-sm" onclick="checkHoneytokens()">Check Tokens</button>' +
                         '<button class="btn btn-sm" onclick="loadTraceLog()">&#8635; Refresh</button>' +
                     '</div>' +
+                    '<div id="autoban-bar" style="margin-bottom:8px;font-size:12px"></div>' +
                     '<div id="trace-result" style="font-size:12px;font-family:monospace;max-height:300px;overflow-y:auto"></div>' +
                 '</div>' +
                 '<div class="security-tab-content" id="adv-integrity">' +
@@ -1540,7 +1541,7 @@
             if (tab === 'logs') loadLog();
             if (tab === 'scheduler') loadSchedulerStatus();
             if (tab === 'anomaly') loadAnomalyLog();
-            if (tab === 'trace') loadTraceLog();
+            if (tab === 'trace') { loadTraceLog(); loadAutobanStatus(); }
         }
 
         // ── Scheduler + Auto-Kill ──
@@ -1821,6 +1822,31 @@
                 '</div>';
             });
             el.innerHTML = html;
+        }
+
+        // ── Auto-Ban ──
+
+        async function loadAutobanStatus() {
+            var data = await fetchJSON(API + '/security/autoban/status');
+            var el = document.getElementById('autoban-bar');
+            if (!el) return;
+            if (data && data.banned_count > 0) {
+                var html = '<span class="badge badge-danger">' + data.banned_count + ' IP(s) banned</span> ';
+                data.banned_ips.forEach(function(ip) {
+                    html += '<span style="font-size:10px;margin-right:6px">' + escHtml(ip) +
+                        ' <a href="#" onclick="unbanIP(\'' + ip + '\');return false" style="color:var(--accent)">unban</a></span>';
+                });
+                html += '<br><span style="font-size:10px;color:var(--text-secondary)">Auto-ban: ' + data.threshold + ' fails in ' + data.window_s + 's &rarr; permanent block</span>';
+                el.innerHTML = html;
+            } else {
+                el.innerHTML = '<span class="badge badge-success">0 banned</span> <span style="font-size:10px;color:var(--text-secondary)">Auto-ban active: ' + (data ? data.threshold + ' fails in ' + data.window_s + 's' : '?') + '</span>';
+            }
+        }
+
+        async function unbanIP(ip) {
+            if (!confirm('Unban ' + ip + '?')) return;
+            await fetchJSON(API + '/security/autoban/unban', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ip: ip})});
+            loadAutobanStatus();
         }
 
         // ── Geolocation ──
