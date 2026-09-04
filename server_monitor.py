@@ -680,6 +680,39 @@ def process_kill():
     return jsonify(result), status
 
 
+ALLOWED_SERVICES = {"bytesweep", "caddy", "fail2ban", "ssh"}
+
+
+@app.route("/api/services")
+@auth_required
+def services_list():
+    out = []
+    for name in sorted(ALLOWED_SERVICES):
+        try:
+            r = subprocess.run(["systemctl", "is-active", name],
+                               capture_output=True, text=True, timeout=10)
+            state = r.stdout.strip() or "unknown"
+        except Exception:
+            state = "unknown"
+        out.append({"name": name, "active": state})
+    return jsonify({"services": out})
+
+
+@app.route("/api/services/restart", methods=["POST"])
+@auth_required
+def services_restart():
+    name = (request.get_json(silent=True) or {}).get("name", "")
+    if name not in ALLOWED_SERVICES:
+        return jsonify({"success": False, "error": "Service not allowed"}), 400
+    try:
+        r = subprocess.run(["systemctl", "restart", name],
+                           capture_output=True, text=True, timeout=90)
+        ok = r.returncode == 0
+        return jsonify({"success": ok, "output": ((r.stderr or r.stdout) or "")[-500:]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)[:200]}), 500
+
+
 # ── Security API ────────────────────────────────────────────────
 
 @app.route("/api/security/clamav-status")

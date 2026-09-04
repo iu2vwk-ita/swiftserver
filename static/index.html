@@ -734,9 +734,9 @@
             interval: 3000
         };
         const API = '/api';
-        const HISTORY = { cpu: [], ram: [], net: [] };
+        const HISTORY = { cpu: [], ram: [], net: [], temp: [] };
         const MAX_HISTORY = 60;
-        let cpuChart, ramChart, netChart;
+        let cpuChart, ramChart, netChart, tempChart;
         let prevNet = { bytes_sent: 0, bytes_recv: 0, ts: 0 };
         let AUTH_TOKEN = null;
         let AUTH_REQUIRED = false;
@@ -878,6 +878,11 @@
                 data: { datasets: [{ borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.4, pointRadius: 0, data: [] }] },
                 options: Object.assign({}, opts, { scales: Object.assign({}, opts.scales, { y: Object.assign({}, opts.scales.y, { min: 0, title: { display: true, text: 'KB/s', color: '#8899a8' } }) }) })
             });
+            tempChart = new Chart(document.getElementById('tempChart'), {
+                type: 'line',
+                data: { datasets: [{ borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4, pointRadius: 0, data: [] }] },
+                options: Object.assign({}, opts, { scales: Object.assign({}, opts.scales, { y: Object.assign({}, opts.scales.y, { min: 0, max: 100, title: { display: true, text: '°C', color: '#8899a8' } }) }) })
+            });
         }
 
         function updateCharts() {
@@ -887,6 +892,10 @@
             ramChart.update('none');
             netChart.data.datasets[0].data = HISTORY.net;
             netChart.update('none');
+            if (typeof tempChart !== 'undefined' && tempChart) {
+                tempChart.data.datasets[0].data = HISTORY.temp;
+                tempChart.update('none');
+            }
         }
 
         function updateHistory(m, init) {
@@ -910,7 +919,12 @@
             prevNet = { bytes_sent: m.network.bytes_sent, bytes_recv: m.network.bytes_recv, ts: now };
             HISTORY.net.push({ x: now, y: netTotal / 1024 });
 
-            [HISTORY.cpu, HISTORY.ram, HISTORY.net].forEach(function(h) {
+            var tmax = 0;
+            if (m.temps && m.temps.length) {
+                m.temps.forEach(function(t) { if (t.current > tmax) tmax = t.current; });
+            }
+            HISTORY.temp.push({ x: now, y: tmax });
+            [HISTORY.cpu, HISTORY.ram, HISTORY.net, HISTORY.temp].forEach(function(h) {
                 while (h.length > MAX_HISTORY) h.shift();
             });
         }
@@ -990,6 +1004,7 @@
 
                 '<div class="charts-grid">' +
                     '<div class="chart-card"><h3>Network Traffic (KB/s)</h3><div class="chart-container"><canvas id="netChart"></canvas></div></div>' +
+                    '<div class="chart-card"><h3>CPU Temperature (°C)</h3><div class="chart-container"><canvas id="tempChart"></canvas></div></div>' +
                     '<div class="chart-card" id="load-card">' +
                         '<h3>System Load</h3>' +
                         '<div class="chart-container" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px">' +
@@ -997,6 +1012,7 @@
                             '<div style="font-size:12px;color:var(--text-secondary)">5min: ' + fmt(m.load['5min'], 2) + ' &middot; 15min: ' + fmt(m.load['15min'], 2) + '</div>' +
                         '</div>' +
                     '</div>' +
+                    '<div class="chart-card"><h3>Services</h3><div id="services-body" style="padding:4px 2px"><div style="color:var(--text-secondary);font-size:13px">Loading...</div></div></div>' +
                 '</div>';
 
             // Disks
@@ -2202,8 +2218,34 @@
             }
         }
 
+        async function loadServices() {
+            var box = document.getElementById('services-body');
+            if (!box) return;
+            var d = await fetchJSON(API + '/services');
+            if (!d || !d.services) { box.innerHTML = '<div style="color:var(--text-secondary);font-size:13px">Unavailable</div>'; return; }
+            box.innerHTML = '';
+            d.services.forEach(function(s) {
+                var ok = s.active === 'active';
+                var row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px';
+                row.innerHTML = '<span style="width:8px;height:8px;border-radius:99px;background:' + (ok ? '#10b981' : '#ef4444') + '"></span>' +
+                    '<span style="flex:1">' + escHtml(s.name) + ' <span style="color:var(--text-secondary)">' + escHtml(s.active) + '</span></span>' +
+                    '<button class="kill-btn" style="opacity:1" onclick="restartService(\'' + escHtml(s.name) + '\',this)">&#8635;</button>';
+                box.appendChild(row);
+            });
+        }
+        async function restartService(name, btn) {
+            if (!confirm('Restart ' + name + '?')) return;
+            btn.disabled = true;
+            var r = await fetchJSON(API + '/services/restart', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }) });
+            alert(r && r.success ? name + ' restarted' : 'Failed: ' + ((r && (r.output || r.error)) || '?'));
+            btn.disabled = false;
+            loadServices();
+        }
         checkAuth().then(function() {
             setInterval(poll, CONFIG.interval);
+            loadServices();
+            setInterval(loadServices, 30000);
         });
     </script>
 </body>
