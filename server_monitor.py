@@ -585,6 +585,12 @@ def index():
     return app.send_static_file("index.html")
 
 
+@app.route("/api/health")
+def health():
+    """No-auth liveness probe for systemd/docker."""
+    return jsonify({"status": "ok", "service": "bytesweep"})
+
+
 # ── System API ──────────────────────────────────────────────────
 
 @app.route("/api/system")
@@ -1089,7 +1095,8 @@ def terminal_resize_ws(ws):
 
 # ── Main ────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
+def init_app():
+    """Init config+state. Called on direct run AND on gunicorn worker import (workers=1)."""
     from config import (SERVER_PORT, SERVER_HOST, UPDATE_INTERVAL, ENABLE_TEMPS,
                         LOG_LEVEL, ACCESS_LOG, ACCESS_LOG_FILE, PANEL_PASSWORD,
                         SESSION_EXPIRY_HOURS, VIRUS_SCAN_PATHS, VIRUS_SCAN_TIMEOUT,
@@ -1137,5 +1144,13 @@ if __name__ == "__main__":
     else:
         logging.info("Panel password protection DISABLED")
 
+    logging.info("ByteSweep init complete")
+
+
+if __name__ == "__main__":
+    init_app()
+    from config import SERVER_PORT, SERVER_HOST
     logging.info(f"Starting Server Monitor on {SERVER_HOST}:{SERVER_PORT}")
     app.run(host=SERVER_HOST, port=SERVER_PORT, debug=False, threaded=True)
+else:
+    init_app()  # gunicorn worker import (tenere workers=1: scheduler e state sono per-processo)
