@@ -18,6 +18,13 @@ A lightweight, real-time Linux server monitoring dashboard with integrated disk 
 - **Access Logging** -- HTTP request logging with timestamps and IPs
 - **Multi-Distro Packages** -- Pre-built .deb, .rpm, AppImage + PKGBUILD and snapcraft.yaml
 - **Responsive Dark UI** -- Works on desktop, tablet, and mobile
+- **Service Manager** -- Live status + one-click restart for systemd services (whitelisted)
+- **CPU Temperature Chart** -- Real-time thermal history alongside CPU/RAM/network
+- **Health Endpoint** -- `/api/health` liveness probe for systemd/docker
+- **Gunicorn-ready** -- `init_app()` factory for production workers (gevent WebSocket support)
+- **Automated Backups** -- Cron-friendly state backup (settings, integrity, autoban)
+- **Fail2ban Integration** -- Jail config for failed panel logins
+- **Telegram Alerts** -- Scheduled security scan results pushed to a private chat
 
 ## Screenshots
 
