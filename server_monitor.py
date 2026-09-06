@@ -31,6 +31,7 @@ from datetime import datetime, timedelta
 import cleanup
 import security
 import advanced
+import daily_report
 
 app = Flask(__name__)
 sock = Sock(app)
@@ -354,10 +355,34 @@ def _metrics_worker():
         except Exception:
             pass
 
+        # Campione giornaliero ogni ~5 min (300s) per il report serale
+        try:
+            global _daily_last_sample
+            if time.time() - _daily_last_sample >= 300:
+                daily_report.sample()
+                _daily_last_sample = time.time()
+        except Exception:
+            pass
+
+        # Report serale alle 00:00 (una volta al giorno)
+        try:
+            global _daily_last_report
+            now = datetime.now()
+            if now.hour == 0 and now.minute < 2 and time.time() - _daily_last_report >= 3600:
+                from config import ALERT_WEBHOOK_URL
+                if ALERT_WEBHOOK_URL:
+                    report = daily_report.build_report()
+                    advanced.notify("temp_warn", report)
+                _daily_last_report = time.time()
+        except Exception as e:
+            log.warning(f"daily report error: {e}")
+
         time.sleep(METRICS_INTERVAL)
 
 
 # Start background collector immediately
+_daily_last_sample = 0.0
+_daily_last_report = 0.0
 _thread = threading.Thread(target=_metrics_worker, daemon=True)
 _thread.start()
 
@@ -650,6 +675,16 @@ def cleanup_run():
     data = request.get_json(silent=True) or {}
     items = data.get("items", None)
     result = cleanup.run_cleanup(items)
+    fired = result.get("total_freed_str", "0 B")
+    n_ok = sum(1 for it in result.get("items", []) if it.get("success"))
+    n_fail = sum(1 for it in result.get("items", []) if not it.get("success"))
+    msg = f"🧹 ByteSweep: pulizia completata. Liberati <b>{fired}</b> ({n_ok} ok, {n_fail} errori)."
+    if n_fail:
+        advanced.notify("cleanup_error", msg)
+        daily_report.record_job("cleanup_error", f"liberati {fired}, {n_fail} errori")
+    else:
+        advanced.notify("cleanup_done", msg)
+        daily_report.record_job("cleanup_done", f"liberati {fired}")
     return jsonify(result)
 
 
@@ -714,6 +749,29 @@ def services_restart():
 
 
 # ── Security API ────────────────────────────────────────────────
+
+@app.route("/api/notify/prefs", methods=["GET"])
+@auth_required
+def notify_prefs_get():
+    return jsonify(advanced.get_notify_prefs())
+
+
+@app.route("/api/notify/prefs", methods=["POST"])
+@auth_required
+def notify_prefs_post():
+    data = request.get_json(silent=True) or {}
+    cat = data.get("category", "")
+    enabled = data.get("enabled", True)
+    ok = advanced.set_notify_pref(cat, enabled)
+    return jsonify({"success": ok, "prefs": advanced.get_notify_prefs()})
+
+
+@app.route("/api/notify/test", methods=["POST"])
+@auth_required
+def notify_test():
+    advanced.notify("backup_done", "🧪 ByteSweep: notifica di prova. Sistema notifiche attivo.")
+    return jsonify({"success": True})
+
 
 @app.route("/api/security/clamav-status")
 def clamav_status():
@@ -804,6 +862,13 @@ def security_ports():
 @app.route("/api/security/forensic-scan")
 def forensic_scan():
     result = security.deep_forensic_scan()
+    total = result.get("total_findings", 0)
+    if total:
+        advanced.notify("security_alert", f"🛡️ ByteSweep: scan sicurezza ha trovato <b>{total}</b> minacce!")
+        daily_report.record_job("security_alert", f"{total} minacce trovate")
+    else:
+        advanced.notify("scan_done", "✅ ByteSweep: scan sicurezza completata, nessuna minaccia.")
+        daily_report.record_job("scan_done", "nessuna minaccia")
     return jsonify(result)
 
 

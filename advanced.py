@@ -146,6 +146,71 @@ def _send_webhook(url, text):
     except Exception as e:
         log.error(f"Webhook alert failed: {e}")
 
+# ── Notification system (categorised, admin-toggled) ───────────
+NOTIFY_CATEGORIES = {
+    "scan_done": "Scan sicurezza terminata",
+    "scan_error": "Errore scan sicurezza",
+    "cleanup_done": "Pulizia completata",
+    "cleanup_error": "Errore pulizia",
+    "backup_done": "Backup completato",
+    "temp_warn": "Temperatura alta",
+    "security_alert": "Allerta sicurezza",
+}
+_NOTIFY_FORCED = {"security_alert", "temp_warn"}
+
+
+def _load_notify_prefs():
+    try:
+        d = json.load(open(ADVANCED_STATE_FILE, "r"))
+        return d.get("notify_prefs", {})
+    except Exception:
+        return {}
+
+
+def _save_notify_prefs(prefs):
+    try:
+        d = json.load(open(ADVANCED_STATE_FILE, "r"))
+    except Exception:
+        d = {}
+    d["notify_prefs"] = prefs
+    with open(ADVANCED_STATE_FILE, "w") as f:
+        json.dump(d, f, indent=2)
+
+
+def get_notify_prefs():
+    p = _load_notify_prefs()
+    out = {}
+    for key, label in NOTIFY_CATEGORIES.items():
+        out[key] = {"label": label, "enabled": True if key in _NOTIFY_FORCED else p.get(key, True)}
+    return out
+
+
+def set_notify_pref(cat, enabled):
+    if cat not in NOTIFY_CATEGORIES:
+        return False
+    if cat in _NOTIFY_FORCED:
+        return False
+    p = _load_notify_prefs()
+    p[cat] = bool(enabled)
+    _save_notify_prefs(p)
+    return True
+
+
+def notify(category, message):
+    if category not in NOTIFY_CATEGORIES:
+        return
+    if category not in _NOTIFY_FORCED:
+        prefs = _load_notify_prefs()
+        if not prefs.get(category, True):
+            log.info(f"Notify {category} disabilitata: {message}")
+            return
+    try:
+        from config import ALERT_WEBHOOK_URL
+        if ALERT_WEBHOOK_URL:
+            _send_telegram(ALERT_WEBHOOK_URL, message)
+    except Exception as e:
+        log.error(f"notify failed: {e}")
+
 
 # ── 2. Firewall (iptables) ──────────────────────────────────────
 

@@ -947,6 +947,7 @@
             loadCleanupItems();
             loadSecurityPorts();
             loadSettings();
+            loadNotify();
             initTerminal();
         }
 
@@ -1126,6 +1127,13 @@
                     '</div>' +
                     '<span id="settings-msg" style="font-size:12px;color:var(--text-secondary)"></span>' +
                 '</div>' +
+            '</div>';
+
+            // Notifications Panel
+            html += '<div class="info-section" id="notify-panel">' +
+                '<h3>&#128276; Notifications</h3>' +
+                '<div id="notify-content" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px"></div>' +
+                '<div style="margin-top:10px"><button class="btn btn-sm btn-accent" onclick="testNotify()">&#128276; Test notification</button><span id="notify-msg" style="font-size:12px;color:var(--text-secondary);margin-left:10px"></span></div>' +
             '</div>';
 
             // Advanced Panel
@@ -1927,6 +1935,37 @@
                 if (badgeOn) badgeOn.style.display = 'none';
                 if (disableBtn) disableBtn.style.display = 'none';
             }
+        }
+
+        async function loadNotify() {
+            var box = document.getElementById('notify-content');
+            if (!box) return;
+            var d = await fetchJSON(API + '/notify/prefs');
+            if (!d) { box.innerHTML = '<div style="color:var(--text-secondary);font-size:13px">Unavailable</div>'; return; }
+            box.innerHTML = '';
+            Object.keys(d).forEach(function(k) {
+                var item = d[k];
+                var disabled = k === 'security_alert' || k === 'temp_warn' ? true : false;
+                var row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px;font-size:13px';
+                row.innerHTML = '<span>' + escHtml(item.label) +
+                    (disabled ? ' &#128274;' : '') + '</span>' +
+                    '<label style="position:relative;display:inline-block;width:34px;height:18px"><input type="checkbox" ' +
+                    (item.enabled ? 'checked' : '') + (disabled ? ' disabled' : '') +
+                    ' onchange="toggleNotify(\'' + k + '\', this.checked)" style="opacity:0;width:0;height:0">' +
+                    '<span style="position:absolute;inset:0;background:' + (item.enabled ? 'var(--accent)' : 'var(--border)') + ';border-radius:99px;transition:.2s"></span></label>';
+                box.appendChild(row);
+            });
+        }
+        async function toggleNotify(cat, enabled) {
+            var r = await fetchJSON(API + '/notify/prefs', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({category:cat, enabled:enabled})});
+            if (r) loadNotify();
+        }
+        async function testNotify() {
+            var msg = document.getElementById('notify-msg');
+            msg.textContent = 'Invio...';
+            var r = await fetchJSON(API + '/notify/test', {method:'POST'});
+            if (r && r.success) msg.textContent = 'Inviata!';
         }
 
         async function enablePassword() {

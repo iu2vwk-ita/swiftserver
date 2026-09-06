@@ -25,6 +25,8 @@ A lightweight, real-time Linux server monitoring dashboard with integrated disk 
 - **Automated Backups** -- Cron-friendly state backup (settings, integrity, autoban)
 - **Fail2ban Integration** -- Jail config for failed panel logins
 - **Telegram Alerts** -- Scheduled security scan results pushed to a private chat
+- **Notification System** -- Categorized alerts (scan/cleanup/backup) with per-category toggles from the dashboard or telegram bot (`/notify`)
+- **Daily Report** -- Auto-generated nightly summary (uptime, CPU/RAM/load averages, traffic, jobs, OpenCode sessions) sent at 00:00 via telegram
 
 ## Screenshots
 
